@@ -49,11 +49,11 @@ const EmployerApplicants = () => {
           <p>No jobs with applicants yet.</p>
         </div>
       ) : (
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {jobsWithApplicants.map((job) => (
             <div
               key={job.jobId}
-              className="bg-white rounded-2xl shadow-lg border border-emerald-200 hover:shadow-2xl transition-shadow duration-300 p-6 flex flex-col"
+              className="bg-white rounded-2xl shadow-lg border border-emerald-200 hover:shadow-2xl transition-shadow duration-300 p-6 flex flex-col w-full"
             >
               <h3 className="text-xl font-bold text-indigo-700 mb-2 flex items-center gap-2">
                 <svg className="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 01.88 7.903A5.5 5.5 0 1112 6.5c.338 0 .672.03 1 .086" /></svg>

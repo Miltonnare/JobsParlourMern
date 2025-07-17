@@ -73,7 +73,7 @@ const JobSeekerDashboard = () => {
           </div>
           
           {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 gap-y-4 mt-8">
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 text-center">
               <div className="text-3xl font-bold mb-2">{totalJobs}</div>
               <div className="text-blue-100">Total Jobs Available</div>
@@ -94,7 +94,7 @@ const JobSeekerDashboard = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Search and Filters */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 gap-y-4">
             {/* Search */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">Search Jobs</label>
@@ -186,7 +186,7 @@ const JobSeekerDashboard = () => {
                 </div>
               </div>
               
-              <div className="grid gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 gap-y-4 min-w-0">
                 {filteredJobs.map((job, index) => (
                   <JobItem 
                     key={job._id || `job-${index}`} 

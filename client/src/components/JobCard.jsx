@@ -29,8 +29,8 @@ const JobCard = ({ job, onEdit, onDelete }) => {
     };
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 p-6">
-            <div className="flex items-start justify-between">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 p-6 text-base">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-y-2">
                 <div className="flex-1">
                     {/* Job Header */}
                     <div className="flex items-center justify-between mb-3">
@@ -70,8 +70,8 @@ const JobCard = ({ job, onEdit, onDelete }) => {
                     </p>
 
                     {/* Job Details */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             {/* Salary */}
                             <div className="flex items-center text-green-600 font-semibold">
                                 <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -98,10 +98,10 @@ const JobCard = ({ job, onEdit, onDelete }) => {
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center space-x-2">
+                        <div className="flex flex-col sm:flex-row items-stretch gap-2 w-full sm:w-auto mt-4 sm:mt-0">
                             <button
                                 onClick={() => onEdit(job)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center"
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center w-full sm:w-auto"
                             >
                                 <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -110,7 +110,7 @@ const JobCard = ({ job, onEdit, onDelete }) => {
                             </button>
                             <button
                                 onClick={() => onDelete(job._id)}
-                                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center"
+                                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center w-full sm:w-auto"
                             >
                                 <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

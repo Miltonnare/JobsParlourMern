@@ -79,8 +79,8 @@ const JobItem = ({ job, onApplySuccess }) => {
     };
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 p-6">
-            <div className="flex items-start justify-between">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 p-6 text-base">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-y-2">
                 <div className="flex-1">
                     {/* Job Header */}
                     <div className="flex items-center justify-between mb-3">
@@ -117,8 +117,8 @@ const JobItem = ({ job, onApplySuccess }) => {
                     </p>
 
                     {/* Job Details */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             {/* Salary */}
                             <div className="flex items-center text-green-600 font-semibold">
                                 <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -137,14 +137,14 @@ const JobItem = ({ job, onApplySuccess }) => {
                         </div>
 
                         {/* Apply Button */}
-                        <div className="flex flex-col items-end space-y-2">
+                        <div className="flex flex-col items-end space-y-2 w-full sm:w-auto mt-4 sm:mt-0">
                             {error && (
                                 <p className="text-red-500 text-sm">{error}</p>
                             )}
                             <button 
                                 onClick={handleApply}
                                 disabled={isApplying || hasApplied || checkIfApplied()}
-                                className={`px-6 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center ${
+                                className={`w-full sm:w-auto px-6 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center ${
                                     hasApplied || checkIfApplied()
                                         ? 'bg-green-600 text-white cursor-not-allowed'
                                         : isApplying

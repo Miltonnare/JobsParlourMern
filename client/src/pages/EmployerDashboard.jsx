@@ -78,7 +78,7 @@ const EmployerDashboard = () => {
             {/* Header Section */}
             <div className="bg-gradient-to-r from-orange-600 to-emerald-700 text-white">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <div>
                             <h1 className="text-4xl font-bold mb-2">Employer Dashboard</h1>
                             <p className="text-xl text-green-100">Manage your job postings and find the perfect candidates</p>
@@ -116,15 +116,15 @@ const EmployerDashboard = () => {
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Tab Navigation */}
-                <div className="flex space-x-4 mb-8">
+                <div className="flex flex-wrap gap-2 mb-8">
                   <button
-                    className={`px-4 py-2 rounded-t-lg font-semibold focus:outline-none ${activeTab === 'jobs' ? 'bg-white border-b-2 border-green-600 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+                    className={`w-full sm:w-auto px-4 py-2 rounded-t-lg font-semibold focus:outline-none ${activeTab === 'jobs' ? 'bg-white border-b-2 border-green-600 text-green-700' : 'bg-gray-100 text-gray-500'}`}
                     onClick={() => setActiveTab('jobs')}
                   >
                     Job Management
                   </button>
                   <button
-                    className={`px-4 py-2 rounded-t-lg font-semibold focus:outline-none ${activeTab === 'applicants' ? 'bg-white border-b-2 border-green-600 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+                    className={`w-full sm:w-auto px-4 py-2 rounded-t-lg font-semibold focus:outline-none ${activeTab === 'applicants' ? 'bg-white border-b-2 border-green-600 text-green-700' : 'bg-gray-100 text-gray-500'}`}
                     onClick={() => setActiveTab('applicants')}
                   >
                     Applicants
@@ -136,7 +136,7 @@ const EmployerDashboard = () => {
                   <>
                     {/* Action Bar */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 flex-wrap">
                             <div>
                                 <h2 className="text-2xl font-bold text-gray-900">Job Management</h2>
                                 <p className="text-gray-600 mt-1">Create and manage your job postings</p>
@@ -146,7 +146,7 @@ const EmployerDashboard = () => {
                                     setEditingJob(null);
                                     setShowJobForm(true);
                                 }}
-                                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center"
+                                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center w-full sm:w-auto"
                             >
                                 <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -236,7 +236,7 @@ const EmployerDashboard = () => {
                                     </div>
                                 </div>
                                 
-                                <div className="grid gap-6">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 gap-y-4 min-w-0">
                                     {jobs.map(job => (
                                         <JobCard
                                             key={job._id}
