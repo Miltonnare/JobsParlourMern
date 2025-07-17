@@ -127,6 +127,32 @@ const getMyApplications = async (req, res) => {
   }
 };
 
+const  getMyApplicantsForEmployerByJobs=async (req,res)=>{
+  try {
+    const employerId = req.user._id; // use _id, not id
+
+    // Find jobs created by this employer, and populate applications.user
+    const jobs = await Job.find({ createdBy: employerId })
+      .populate('applications.user', 'name email');
+
+    // Format the response
+    const jobsWithApplicants = jobs.map(job => ({
+      jobId: job._id,
+      title: job.title,
+      applications: job.applications.map(app => ({
+        _id: app._id,
+        applicantId: app.user, // already populated with name/email
+        appliedAt: app.appliedAt
+      }))
+    }));
+
+    res.json(jobsWithApplicants);
+  } catch (err) {
+    console.error('Error in getMyApplicantsForEmployerByJobs:', err);
+    res.status(500).json({ message: 'Server Error', error: err.message });
+  }
+};
+
 
 module.exports={
     createJob,
@@ -135,5 +161,6 @@ module.exports={
     updateJob,
     deleteJob,
     applyToJob,
-    getMyApplications
+    getMyApplications,
+    getMyApplicantsForEmployerByJobs
 };
