@@ -127,7 +127,7 @@ const getMyApplications = async (req, res) => {
   }
 };
 
-const  getMyApplicantsForEmployerByJobs=async (req,res)=>{
+
   const getMyApplicantsForEmployerByJobs = async (req, res) => {
   try {
     const employerId = req.user._id; 
@@ -152,8 +152,8 @@ const  getMyApplicantsForEmployerByJobs=async (req,res)=>{
     console.error('Error in getMyApplicantsForEmployerByJobs:', err);
     res.status(500).json({ message: 'Server Error', error: err.message });
   }
-}
 };
+
 
 
 module.exports={
