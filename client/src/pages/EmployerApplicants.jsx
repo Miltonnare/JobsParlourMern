@@ -35,36 +35,55 @@ const EmployerApplicants = () => {
   if (error) {
     return (
       <div className="p-6">
-        <h2 className="text-2xl font-bold mb-4">Applicants for Your Jobs</h2>
-        <p className="text-red-600">{error}</p>
+        <h2 className="text-3xl font-extrabold mb-4 text-rose-700">Applicants for Your Jobs</h2>
+        <p className="text-red-600 bg-red-100 rounded p-4">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">Applicants for Your Jobs</h2>
+    <div className="p-6 bg-gradient-to-br from-rose-50 via-emerald-50 to-indigo-50 min-h-screen">
+      <h2 className="text-3xl font-extrabold mb-8 text-emerald-700 drop-shadow">Applicants for Your Jobs</h2>
       {Array.isArray(jobsWithApplicants) && jobsWithApplicants.length === 0 ? (
-        <p>No jobs with applicants yet.</p>
+        <div className="bg-white rounded-xl shadow-md p-8 text-center text-gray-500 border border-emerald-100">
+          <p>No jobs with applicants yet.</p>
+        </div>
       ) : (
-        Array.isArray(jobsWithApplicants) && jobsWithApplicants.map((job) => (
-          <div key={job.jobId} className="mb-6 border p-4 rounded shadow">
-            <h3 className="text-xl font-semibold text-indigo-600">{job.title}</h3>
-            {job.applications.length === 0 ? (
-              <p className="text-gray-500 mt-2">No applicants yet.</p>
-            ) : (
-              <ul className="list-disc ml-6 mt-2">
-                {job.applications.map((app) => (
-                  <li key={app._id}>
-                    <p><strong>Name:</strong> {app.applicantId?.name}</p>
-                    <p><strong>Email:</strong> {app.applicantId?.email}</p>
-                    <p><strong>Applied on:</strong> {new Date(app.createdAt).toLocaleString()}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))
+        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+          {jobsWithApplicants.map((job) => (
+            <div
+              key={job.jobId}
+              className="bg-white rounded-2xl shadow-lg border border-emerald-200 hover:shadow-2xl transition-shadow duration-300 p-6 flex flex-col"
+            >
+              <h3 className="text-xl font-bold text-indigo-700 mb-2 flex items-center gap-2">
+                <svg className="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 01.88 7.903A5.5 5.5 0 1112 6.5c.338 0 .672.03 1 .086" /></svg>
+                {job.title}
+              </h3>
+              {job.applications.length === 0 ? (
+                <p className="text-gray-400 mt-2 italic">No applicants yet.</p>
+              ) : (
+                <ul className="space-y-4 mt-4">
+                  {job.applications.map((app) => (
+                    <li
+                      key={app._id}
+                      className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex flex-col gap-1 shadow-sm hover:bg-emerald-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+                        <span className="font-semibold text-emerald-800">{app.applicantId?.name}</span>
+                        <span className="ml-auto text-xs text-gray-400">{app.applicantId?.email}</span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        <span className="font-medium text-gray-700">Applied on:</span>{' '}
+                        <span className="text-indigo-600">{app.appliedAt ? new Date(app.appliedAt).toLocaleString() : 'Unknown'}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

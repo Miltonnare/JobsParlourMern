@@ -127,12 +127,11 @@ const getMyApplications = async (req, res) => {
   }
 };
 
-
-  const getMyApplicantsForEmployerByJobs = async (req, res) => {
+const  getMyApplicantsForEmployerByJobs=async (req,res)=>{
   try {
-    const employerId = req.user._id; 
+    const employerId = req.user._id; // use _id, not id
 
-    
+    // Find jobs created by this employer, and populate applications.user
     const jobs = await Job.find({ createdBy: employerId })
       .populate('applications.user', 'name email');
 
@@ -142,7 +141,7 @@ const getMyApplications = async (req, res) => {
       title: job.title,
       applications: job.applications.map(app => ({
         _id: app._id,
-        applicantId: app.user, 
+        applicantId: app.user, // already populated with name/email
         appliedAt: app.appliedAt
       }))
     }));
@@ -153,7 +152,6 @@ const getMyApplications = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: err.message });
   }
 };
-
 
 
 module.exports={
