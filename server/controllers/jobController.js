@@ -127,6 +127,30 @@ const getMyApplications = async (req, res) => {
   }
 };
 
+const  getMyApplicantsForEmployerByJobs=async (req,res)=>{
+  try {
+    const employerId = req.user.id; // from auth middleware
+
+    const jobs = await Job.find({ postedBy: employerId });
+
+    const jobsWithApplicants = await Promise.all(
+      jobs.map(async (job) => {
+        const applications = await Application.find({ jobId: job._id }).populate('applicantId', 'name email');
+        return {
+          jobId: job._id,
+          title: job.title,
+          applications,
+        };
+      })
+    );
+
+    res.json(jobsWithApplicants);
+  } catch (err) {
+    res.status(500).json({ message: 'Server Error', error: err.message });
+  }
+  
+}
+
 
 module.exports={
     createJob,
@@ -135,5 +159,6 @@ module.exports={
     updateJob,
     deleteJob,
     applyToJob,
-    getMyApplications
+    getMyApplications,
+    getMyApplicantsForEmployerByJobs
 };
