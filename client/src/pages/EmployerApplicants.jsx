@@ -5,17 +5,26 @@ import { AuthContext } from '../context/authContext';
 const EmployerApplicants = () => {
   const { user } = useContext(AuthContext);
   const [jobsWithApplicants, setJobsWithApplicants] = useState([]);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchApplicants = async () => {
       try {
-        const res = await axios.get('/api/employer/applicants', {
+        const res = await axios.get(import.meta.env.VITE_REACT_APP_MY_APPLICANTS_URL, {
           headers: {
             Authorization: `Bearer ${user.token}`,
           },
         });
-        setJobsWithApplicants(res.data);
+        if (Array.isArray(res.data)) {
+          setJobsWithApplicants(res.data);
+          setError('');
+        } else {
+          setJobsWithApplicants([]);
+          setError(res.data?.message || 'Unexpected response from server.');
+        }
       } catch (err) {
+        setJobsWithApplicants([]);
+        setError(err.response?.data?.message || 'Error fetching applicants.');
         console.error('Error fetching applicants:', err.response?.data || err.message);
       }
     };
@@ -23,13 +32,22 @@ const EmployerApplicants = () => {
     fetchApplicants();
   }, [user]);
 
+  if (error) {
+    return (
+      <div className="p-6">
+        <h2 className="text-2xl font-bold mb-4">Applicants for Your Jobs</h2>
+        <p className="text-red-600">{error}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-4">Applicants for Your Jobs</h2>
-      {jobsWithApplicants.length === 0 ? (
+      {Array.isArray(jobsWithApplicants) && jobsWithApplicants.length === 0 ? (
         <p>No jobs with applicants yet.</p>
       ) : (
-        jobsWithApplicants.map((job) => (
+        Array.isArray(jobsWithApplicants) && jobsWithApplicants.map((job) => (
           <div key={job.jobId} className="mb-6 border p-4 rounded shadow">
             <h3 className="text-xl font-semibold text-indigo-600">{job.title}</h3>
             {job.applications.length === 0 ? (

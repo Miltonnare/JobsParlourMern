@@ -11,7 +11,7 @@ const EmployerDashboard = () => {
     const [editingJob, setEditingJob] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showJobForm, setShowJobForm] = useState(false);
-    const [activeTab, setActiveTab] = useState('jobs'); // 'jobs' or 'applicants'
+    const [activeTab, setActiveTab] = useState('jobs'); 
 
     const headers = {
         Authorization: `Bearer ${user?.token}`
