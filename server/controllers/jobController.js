@@ -128,28 +128,32 @@ const getMyApplications = async (req, res) => {
 };
 
 const  getMyApplicantsForEmployerByJobs=async (req,res)=>{
+  const getMyApplicantsForEmployerByJobs = async (req, res) => {
   try {
-    const employerId = req.user.id; // from auth middleware
+    const employerId = req.user._id; 
 
-    const jobs = await Job.find({ postedBy: employerId });
+    
+    const jobs = await Job.find({ createdBy: employerId })
+      .populate('applications.user', 'name email');
 
-    const jobsWithApplicants = await Promise.all(
-      jobs.map(async (job) => {
-        const applications = await Application.find({ jobId: job._id }).populate('applicantId', 'name email');
-        return {
-          jobId: job._id,
-          title: job.title,
-          applications,
-        };
-      })
-    );
+    // Format the response
+    const jobsWithApplicants = jobs.map(job => ({
+      jobId: job._id,
+      title: job.title,
+      applications: job.applications.map(app => ({
+        _id: app._id,
+        applicantId: app.user, 
+        appliedAt: app.appliedAt
+      }))
+    }));
 
     res.json(jobsWithApplicants);
   } catch (err) {
+    console.error('Error in getMyApplicantsForEmployerByJobs:', err);
     res.status(500).json({ message: 'Server Error', error: err.message });
   }
-  
 }
+};
 
 
 module.exports={
