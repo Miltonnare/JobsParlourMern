@@ -68,6 +68,13 @@ JWT is used for authentication
 
 Routes are protected based on roles
 
+## Deployment
+
+ The project was deployed on Render for Backend, Vercel for the Frontend and MongoAtlas for the Database.
+ Ensures it meets the MERN STACK requirements.
+
+Link: https://jobs-parlour-mern.vercel.app/
+
 👨‍💻 Author
 Milton
 
