@@ -58,6 +58,7 @@ jobs-parlour/
 │   ├── routes/
 │   └── server.js
 
+```
 
 🛡️ Security Notes
 
