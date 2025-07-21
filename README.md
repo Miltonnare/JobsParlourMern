@@ -7,6 +7,14 @@ Jobs Parlour is a real-world job marketplace MVP built with the **MERN stack (Mo
 ## 📸 Screenshots
 
 Coming soon... 
+<img width="944" height="447" alt="jb8" src="https://github.com/user-attachments/assets/6c41d68d-da4b-4ca8-afd3-a1fd6fe7b1c3" />
+<img width="941" height="450" alt="jb9" src="https://github.com/user-attachments/assets/e34e778d-7b32-435b-9777-27f9c020cce0" />
+<img width="925" height="443" alt="jb10" src="https://github.com/user-attachments/assets/d3ead335-6585-4b1d-a14d-53885868de38" />
+<img width="941" height="452" alt="jb1" src="https://github.com/user-attachments/assets/60a45649-832c-487a-acb2-8ebe2c8151ab" />
+<img width="946" height="452" alt="jb2" src="https://github.com/user-attachments/assets/21572e16-bb5c-4fe2-8a65-4beccbabe9f0" />
+
+
+
 
 ---
 
