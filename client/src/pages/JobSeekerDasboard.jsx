@@ -9,13 +9,33 @@ const JobSeekerDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('all');
   const [selectedLocation, setSelectedLocation] = useState('all');
+  const [selectedWorkplace, setSelectedWorkplace] = useState('all');
+  const [sort, setSort] = useState('newest');
+  const [minSalary, setMinSalary] = useState('');
+  const [maxSalary, setMaxSalary] = useState('');
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [savedIds, setSavedIds] = useState([]);
 
   const fetchJobs = async () => {
     try {
-      const res = await axios.get(import.meta.env.VITE_REACT_APP_JOBS_URL);
+      const params = {
+        search: searchTerm,
+        jobType: selectedType,
+        location: selectedLocation,
+        workplace: selectedWorkplace,
+        minSalary,
+        maxSalary,
+        sort,
+        page,
+        limit: 9
+      };
+      const res = await axios.get(import.meta.env.VITE_REACT_APP_JOBS_URL, { params });
       const jobsData = Array.isArray(res.data) ? res.data : res.data.jobs;
-      setJobs(jobsData);
-      setFilteredJobs(jobsData);
+      const decoratedJobs = jobsData.map(job => ({ ...job, isSaved: savedIds.includes(job._id) }));
+      setJobs(decoratedJobs);
+      setFilteredJobs(decoratedJobs);
+      setPages(res.data.pages || 1);
     } catch (error) {
       console.error("Failed to Fetch Jobs:", error);
     } finally {
@@ -24,36 +44,30 @@ const JobSeekerDashboard = () => {
   };
 
   useEffect(() => {
-    fetchJobs();
+    const fetchSavedJobs = async () => {
+      if (!localStorage.getItem('user')) return;
+      try {
+        const auth = JSON.parse(localStorage.getItem('user'));
+        if (auth?.user?.role !== 'jobseeker') return;
+        const savedRes = await axios.get(
+          `${import.meta.env.VITE_REACT_APP_LOGIN_URL.replace('/login', '')}/saved-jobs`,
+          { headers: { Authorization: `Bearer ${auth.token}` } }
+        );
+        setSavedIds(savedRes.data.map(job => job._id));
+      } catch (error) {
+        console.error("Failed to fetch saved jobs:", error);
+      }
+    };
+    fetchSavedJobs();
   }, []);
 
   
   useEffect(() => {
-    let filtered = jobs;
-
-    
-    if (searchTerm) {
-      filtered = filtered.filter(job =>
-        job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        job.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        job.location.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (selectedType !== 'all') {
-      filtered = filtered.filter(job => job.Type === selectedType);
-    }
-
-    
-    if (selectedLocation !== 'all') {
-      filtered = filtered.filter(job => job.location === selectedLocation);
-    }
-
-    setFilteredJobs(filtered);
-  }, [jobs, searchTerm, selectedType, selectedLocation]);
+    fetchJobs();
+  }, [searchTerm, selectedType, selectedLocation, selectedWorkplace, minSalary, maxSalary, sort, page, savedIds]);
 
   
-  const jobTypes = ['all', ...new Set(jobs.map(job => job.Type))];
+  const jobTypes = ['all', ...new Set(jobs.map(job => job.jobType || job.Type).filter(Boolean))];
   const locations = ['all', ...new Set(jobs.map(job => job.location))];
 
   
@@ -145,6 +159,44 @@ const JobSeekerDashboard = () => {
                 ))}
               </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Workplace</label>
+              <select
+                value={selectedWorkplace}
+                onChange={(e) => { setSelectedWorkplace(e.target.value); setPage(1); }}
+                className="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Workplaces</option>
+                <option value="onsite">On-site</option>
+                <option value="remote">Remote</option>
+                <option value="hybrid">Hybrid</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Sort</label>
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value)}
+                className="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="salary-high">Highest salary</option>
+                <option value="salary-low">Lowest salary</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Min Salary</label>
+              <input value={minSalary} onChange={(e) => setMinSalary(e.target.value)} type="number" className="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Max Salary</label>
+              <input value={maxSalary} onChange={(e) => setMaxSalary(e.target.value)} type="number" className="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            </div>
           </div>
         </div>
 
@@ -197,6 +249,11 @@ const JobSeekerDashboard = () => {
                     }}
                   />
                 ))}
+              </div>
+              <div className="flex items-center justify-center gap-3 mt-8">
+                <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-4 py-2 rounded-lg border border-gray-300 disabled:opacity-50">Previous</button>
+                <span className="text-sm text-gray-600">Page {page} of {pages}</span>
+                <button disabled={page >= pages} onClick={() => setPage(page + 1)} className="px-4 py-2 rounded-lg border border-gray-300 disabled:opacity-50">Next</button>
               </div>
             </>
           )}

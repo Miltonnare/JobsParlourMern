@@ -1,5 +1,6 @@
 import { useState, useContext } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 import { AuthContext } from '../context/authContext';
 import { toast } from 'react-hot-toast';
 
@@ -7,14 +8,45 @@ const JobItem = ({ job, onApplySuccess }) => {
     const { user } = useContext(AuthContext);
     const [isApplying, setIsApplying] = useState(false);
     const [hasApplied, setHasApplied] = useState(false);
+    const [isSaved, setIsSaved] = useState(Boolean(job.isSaved));
+    const [showApplyForm, setShowApplyForm] = useState(false);
+    const [application, setApplication] = useState({
+        note: '',
+        resumeUrl: user?.user?.resumeUrl || '',
+        resumeText: user?.user?.resumeText || '',
+        bidAmount: user?.user?.expectedRate || '',
+        bidCurrency: 'USD',
+        bidType: 'fixed',
+        estimatedDuration: '',
+        availability: user?.user?.availability || ''
+    });
     const [error, setError] = useState('');
 
     // Check if user has already applied
     const checkIfApplied = () => {
         if (job.applications && user?.user?.id) {
-            return job.applications.some(app => app.user === user.user.id);
+            return job.applications.some(app => app.user === user.user.id || app.user?._id === user.user.id);
         }
         return false;
+    };
+
+    const handleSave = async () => {
+        if (!user) {
+            toast.error('Please login to save jobs');
+            return;
+        }
+
+        try {
+            const res = await axios.post(
+                `${import.meta.env.VITE_REACT_APP_LOGIN_URL.replace('/login', '')}/saved-jobs/${job._id}`,
+                {},
+                { headers: { Authorization: `Bearer ${user.token}` } }
+            );
+            setIsSaved(res.data.saved);
+            toast.success(res.data.saved ? 'Job saved' : 'Job removed from saved jobs');
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Could not update saved job');
+        }
     };
 
     const handleApply = async () => {
@@ -31,7 +63,7 @@ const JobItem = ({ job, onApplySuccess }) => {
             const token = user.token;
             await axios.post(
                 `${import.meta.env.VITE_REACT_APP_JOBS_URL}/${job._id}/apply`,
-                {},
+                application,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`
@@ -40,6 +72,7 @@ const JobItem = ({ job, onApplySuccess }) => {
             );
 
             setHasApplied(true);
+            setShowApplyForm(false);
             toast.success('Application submitted!');
             if (onApplySuccess) {
                 onApplySuccess(job._id);
@@ -87,9 +120,12 @@ const JobItem = ({ job, onApplySuccess }) => {
                             {job.title}
                         </h3>
                         <div className="flex items-center space-x-2">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(job.Type)}`}>
-                                {job.Type}
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(job.jobType || job.Type)}`}>
+                                {job.jobType || job.Type}
                             </span>
+                            {job.status === 'closed' && (
+                                <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Closed</span>
+                            )}
                         </div>
                     </div>
 
@@ -99,7 +135,7 @@ const JobItem = ({ job, onApplySuccess }) => {
                             <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                             </svg>
-                            <span>{job.companyName || 'Company Name'}</span>
+                            <span>{job.createdBy?.companyName || job.companyName || 'Company Name'}</span>
                         </div>
                         <div className="flex items-center">
                             <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -131,8 +167,9 @@ const JobItem = ({ job, onApplySuccess }) => {
                                 <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                 </svg>
-                                <span>Posted recently</span>
+                                <span>{job.createdAt ? new Date(job.createdAt).toLocaleDateString() : 'Posted recently'}</span>
                             </div>
+                            <span className="text-sm text-gray-500 capitalize">{job.workplace || 'onsite'}</span>
                         </div>
 
                         {/* Apply Button */}
@@ -140,12 +177,28 @@ const JobItem = ({ job, onApplySuccess }) => {
                             {error && (
                                 <p className="text-red-500 text-sm">{error}</p>
                             )}
+                            <div className="flex flex-col sm:flex-row gap-2 w-full">
+                            <Link
+                                to={`/jobs/${job._id}`}
+                                className="w-full sm:w-auto px-4 py-2 rounded-lg font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 text-center"
+                            >
+                                Details
+                            </Link>
+                            <button
+                                type="button"
+                                onClick={handleSave}
+                                className={`w-full sm:w-auto px-4 py-2 rounded-lg font-medium border ${isSaved ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                            >
+                                {isSaved ? 'Saved' : 'Save'}
+                            </button>
                             <button 
-                                onClick={handleApply}
-                                disabled={isApplying || hasApplied || checkIfApplied()}
+                                onClick={() => setShowApplyForm(true)}
+                                disabled={isApplying || hasApplied || checkIfApplied() || job.status === 'closed'}
                                 className={`w-full sm:w-auto px-6 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center ${
                                     hasApplied || checkIfApplied()
                                         ? 'bg-green-600 text-white cursor-not-allowed'
+                                        : job.status === 'closed'
+                                        ? 'bg-gray-400 text-white cursor-not-allowed'
                                         : isApplying
                                         ? 'bg-gray-400 text-white cursor-not-allowed'
                                         : 'bg-blue-600 hover:bg-blue-700 text-white'
@@ -171,14 +224,83 @@ const JobItem = ({ job, onApplySuccess }) => {
                                         <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                         </svg>
-                                        Apply Now
+                                        {job.status === 'closed' ? 'Closed' : 'Apply Now'}
                                     </>
                                 )}
                             </button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+            {showApplyForm && (
+                <div className="mt-5 border-t border-gray-200 pt-5 space-y-3">
+                    <textarea
+                        value={application.note}
+                        onChange={(event) => setApplication({ ...application, note: event.target.value })}
+                        rows="3"
+                        placeholder="Short cover note"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                        value={application.resumeUrl}
+                        onChange={(event) => setApplication({ ...application, resumeUrl: event.target.value })}
+                        placeholder="Resume URL"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <textarea
+                        value={application.resumeText}
+                        onChange={(event) => setApplication({ ...application, resumeText: event.target.value })}
+                        rows="4"
+                        placeholder="Resume text or key experience for ATS matching"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <input
+                            value={application.bidAmount}
+                            onChange={(event) => setApplication({ ...application, bidAmount: event.target.value })}
+                            type="number"
+                            placeholder="Bid amount"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <select
+                            value={application.bidType}
+                            onChange={(event) => setApplication({ ...application, bidType: event.target.value })}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="fixed">Fixed</option>
+                            <option value="hourly">Hourly</option>
+                            <option value="monthly">Monthly</option>
+                        </select>
+                        <input
+                            value={application.bidCurrency}
+                            onChange={(event) => setApplication({ ...application, bidCurrency: event.target.value })}
+                            placeholder="Currency"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <input
+                            value={application.estimatedDuration}
+                            onChange={(event) => setApplication({ ...application, estimatedDuration: event.target.value })}
+                            placeholder="Estimated duration"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <input
+                            value={application.availability}
+                            onChange={(event) => setApplication({ ...application, availability: event.target.value })}
+                            placeholder="Availability"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        <button type="button" onClick={() => setShowApplyForm(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700">Cancel</button>
+                        <button type="button" onClick={handleApply} disabled={isApplying} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+                            {isApplying ? 'Applying...' : 'Submit Application'}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

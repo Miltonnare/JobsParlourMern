@@ -1,5 +1,6 @@
 import { useContext, useState, useEffect } from "react";
 import axios from "axios";
+import { useSearchParams } from "react-router-dom";
 import { AuthContext } from "../context/authContext";
 import JobForm from "../components/JobForm";
 import JobCard from "../components/JobCard";
@@ -12,6 +13,16 @@ const EmployerDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [showJobForm, setShowJobForm] = useState(false);
     const [activeTab, setActiveTab] = useState('jobs'); 
+    const [searchParams] = useSearchParams();
+    const [payments, setPayments] = useState([]);
+    const [paymentForm, setPaymentForm] = useState({
+        jobId: '',
+        purpose: 'job_posting',
+        amount: '1000',
+        currency: 'USD'
+    });
+    const [paymentLoading, setPaymentLoading] = useState(false);
+    const [paymentMessage, setPaymentMessage] = useState('');
 
     const headers = {
         Authorization: `Bearer ${user?.token}`
@@ -20,13 +31,14 @@ const EmployerDashboard = () => {
     const fetchJobs = async () => {
         setLoading(true);
         try {
-            const res = await axios.get(import.meta.env.VITE_REACT_APP_JOBS_URL, { headers });
-            if (!Array.isArray(res.data)) {
+            const res = await axios.get(import.meta.env.VITE_REACT_APP_JOBS_URL, { headers, params: { status: 'all', limit: 50 } });
+            const jobsData = Array.isArray(res.data) ? res.data : res.data.jobs;
+            if (!Array.isArray(jobsData)) {
                 throw new Error("Jobs not returned as array");
             }
 
-            const myJobs = res.data.filter(job => {
-                return job.createdBy && job.createdBy._id === user.user.id;
+            const myJobs = jobsData.filter(job => {
+                return job.createdBy && (job.createdBy._id === user.user.id || job.createdBy === user.user.id);
             });
 
             setJobs(myJobs);
@@ -34,6 +46,20 @@ const EmployerDashboard = () => {
             console.error("Error fetching jobs:", err.message || err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const getPaymentUrl = () => {
+        const jobsUrl = import.meta.env.VITE_REACT_APP_JOBS_URL;
+        return jobsUrl ? jobsUrl.replace(/\/jobs$/, '/payments') : 'http://localhost:5000/api/payments';
+    };
+
+    const fetchPayments = async () => {
+        try {
+            const res = await axios.get(`${getPaymentUrl()}/history`, { headers });
+            setPayments(Array.isArray(res.data) ? res.data : []);
+        } catch (err) {
+            console.error("Error fetching payments:", err.message || err);
         }
     };
 
@@ -63,9 +89,60 @@ const EmployerDashboard = () => {
         }
     };
 
+    const handleToggleStatus = async (id) => {
+        try {
+            await axios.patch(`${import.meta.env.VITE_REACT_APP_JOBS_URL}/${id}/status`, {}, { headers });
+            fetchJobs();
+        } catch (err) {
+            console.error("Error updating job status:", err);
+        }
+    };
+
+    const handlePaymentChange = (event) => {
+        setPaymentForm({ ...paymentForm, [event.target.name]: event.target.value });
+    };
+
+    const handleInitializePayment = async (event) => {
+        event.preventDefault();
+        setPaymentLoading(true);
+        setPaymentMessage('');
+
+        try {
+            const res = await axios.post(`${getPaymentUrl()}/initialize`, paymentForm, { headers });
+            window.location.href = res.data.authorizationUrl;
+        } catch (err) {
+            setPaymentMessage(err.response?.data?.message || 'Could not initialize Paystack payment.');
+        } finally {
+            setPaymentLoading(false);
+        }
+    };
+
+    const verifyPaymentReference = async (reference) => {
+        setPaymentLoading(true);
+        try {
+            await axios.get(`${getPaymentUrl()}/verify/${reference}`, { headers });
+            setPaymentMessage('Payment verified successfully.');
+            fetchPayments();
+            fetchJobs();
+        } catch (err) {
+            setPaymentMessage(err.response?.data?.message || 'Payment verification failed.');
+        } finally {
+            setPaymentLoading(false);
+        }
+    };
+
     useEffect(() => {
         fetchJobs();
+        fetchPayments();
     }, []);
+
+    useEffect(() => {
+        const reference = searchParams.get('reference') || searchParams.get('trxref');
+        if (reference) {
+            setActiveTab('payments');
+            verifyPaymentReference(reference);
+        }
+    }, [searchParams]);
 
     // Calculate statistics
     const totalJobs = jobs.length;
@@ -128,6 +205,12 @@ const EmployerDashboard = () => {
                     onClick={() => setActiveTab('applicants')}
                   >
                     Applicants
+                  </button>
+                  <button
+                    className={`w-full sm:w-auto px-4 py-2 rounded-t-lg font-semibold focus:outline-none ${activeTab === 'payments' ? 'bg-white border-b-2 border-green-600 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+                    onClick={() => setActiveTab('payments')}
+                  >
+                    Payments
                   </button>
                 </div>
 
@@ -246,6 +329,7 @@ const EmployerDashboard = () => {
                                                 setShowJobForm(true);
                                             }}
                                             onDelete={handleDelete}
+                                            onToggleStatus={handleToggleStatus}
                                         />
                                     ))}
                                 </div>
@@ -256,6 +340,77 @@ const EmployerDashboard = () => {
                 )}
                 {activeTab === 'applicants' && (
                   <EmployerApplicants />
+                )}
+                {activeTab === 'payments' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <form onSubmit={handleInitializePayment} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+                      <h2 className="text-2xl font-bold text-gray-900">Paystack Checkout</h2>
+                      <select
+                        name="jobId"
+                        value={paymentForm.jobId}
+                        onChange={handlePaymentChange}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                      >
+                        <option value="">General employer payment</option>
+                        {jobs.map((job) => (
+                          <option key={job._id} value={job._id}>{job.title}</option>
+                        ))}
+                      </select>
+                      <select
+                        name="purpose"
+                        value={paymentForm.purpose}
+                        onChange={handlePaymentChange}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                      >
+                        <option value="job_posting">Job posting</option>
+                        <option value="featured_job">Feature job</option>
+                        <option value="subscription">Subscription</option>
+                      </select>
+                      <div className="grid grid-cols-2 gap-3">
+                        <input
+                          name="amount"
+                          value={paymentForm.amount}
+                          onChange={handlePaymentChange}
+                          type="number"
+                          min="1"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                        />
+                        <input
+                          name="currency"
+                          value={paymentForm.currency}
+                          onChange={handlePaymentChange}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      {paymentMessage && <p className="text-sm text-gray-700 bg-gray-100 rounded-lg p-3">{paymentMessage}</p>}
+                      <button disabled={paymentLoading} className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-6 py-3 rounded-lg font-medium">
+                        {paymentLoading ? 'Processing...' : 'Pay with Paystack'}
+                      </button>
+                    </form>
+                    <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-bold text-gray-900">Payment History</h2>
+                        <button onClick={fetchPayments} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700">Refresh</button>
+                      </div>
+                      <div className="space-y-3">
+                        {payments.length === 0 ? (
+                          <p className="text-gray-500">No payments yet.</p>
+                        ) : payments.map((payment) => (
+                          <div key={payment._id} className="border border-gray-200 rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                            <div>
+                              <div className="font-semibold text-gray-900">{payment.purpose?.replace('_', ' ')}</div>
+                              <div className="text-sm text-gray-500">{payment.job?.title || 'General payment'}</div>
+                              <div className="text-xs text-gray-400">{payment.reference}</div>
+                            </div>
+                            <div className="text-left md:text-right">
+                              <div className="font-semibold">{payment.currency} {(payment.amount / 100).toLocaleString()}</div>
+                              <div className={`text-sm capitalize ${payment.status === 'success' ? 'text-green-600' : 'text-amber-600'}`}>{payment.status}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 )}
             </div>
         </div>

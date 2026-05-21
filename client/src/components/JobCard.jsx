@@ -1,4 +1,4 @@
-const JobCard = ({ job, onEdit, onDelete }) => {
+const JobCard = ({ job, onEdit, onDelete, onToggleStatus }) => {
     const getTypeColor = (type) => {
         switch (type?.toLowerCase()) {
             case 'full-time':
@@ -37,8 +37,8 @@ const JobCard = ({ job, onEdit, onDelete }) => {
                             {job.title}
                         </h3>
                         <div className="flex items-center space-x-2">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(job.Type)}`}>
-                                {job.Type}
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(job.jobType || job.Type)}`}>
+                                {job.jobType || job.Type}
                             </span>
                             <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(job.status)}`}>
                                 {job.status || 'Active'}
@@ -106,6 +106,12 @@ const JobCard = ({ job, onEdit, onDelete }) => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
                                 Edit
+                            </button>
+                            <button
+                                onClick={() => onToggleStatus(job._id)}
+                                className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center w-full sm:w-auto"
+                            >
+                                {job.status === 'closed' ? 'Reopen' : 'Close'}
                             </button>
                             <button
                                 onClick={() => onDelete(job._id)}

@@ -1,10 +1,12 @@
 import { useEffect, useState, useContext } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 import { AuthContext } from '../context/authContext';
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800',
-  accepted: 'bg-green-100 text-green-800',
+  shortlisted: 'bg-blue-100 text-blue-800',
+  hired: 'bg-green-100 text-green-800',
   rejected: 'bg-red-100 text-red-800',
 };
 
@@ -24,7 +26,7 @@ const MyApplications = () => {
           { headers: { Authorization: `Bearer ${user?.token}` } }
         );
         setApplications(res.data);
-      } catch (err) {
+      } catch {
         setError('Failed to fetch applications.');
       } finally {
         setLoading(false);
@@ -54,6 +56,19 @@ const MyApplications = () => {
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusColors[app.status] || statusColors['pending']}`}>{app.status || 'pending'}</span>
                 </div>
                 <div className="text-gray-700 mb-2">{app.job?.description?.slice(0, 120) || 'No description.'}</div>
+                {app.note && <div className="text-sm text-gray-600 mb-2">Your note: {app.note}</div>}
+                <div className="flex flex-wrap gap-2 mb-2 text-sm">
+                  {app.bid?.amount && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-medium">
+                      Bid: {app.bid.currency || 'USD'} {Number(app.bid.amount).toLocaleString()} {app.bid.type || 'fixed'}
+                    </span>
+                  )}
+                  {app.ats && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-medium">
+                      ATS: {app.ats.score || 0}%
+                    </span>
+                  )}
+                </div>
                 <div className="flex flex-wrap justify-between items-center text-sm mt-2 gap-2">
                   <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-medium">
                     <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -63,6 +78,7 @@ const MyApplications = () => {
                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                     Applied: {new Date(app.createdAt).toLocaleDateString()}
                   </span>
+                  <Link to={`/jobs/${app.job?._id}`} className="text-blue-600 font-medium hover:underline">View job</Link>
                 </div>
               </div>
             ))}

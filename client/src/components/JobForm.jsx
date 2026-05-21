@@ -6,7 +6,8 @@ const JobForm = ({ onSubmit, editingJob, onCancel }) => {
         description: '',
         location: '',
         salary: '',
-        Type: 'full-time',
+        jobType: 'full-time',
+        workplace: 'onsite',
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -17,7 +18,8 @@ const JobForm = ({ onSubmit, editingJob, onCancel }) => {
                 description: editingJob.description || '',
                 location: editingJob.location || '',
                 salary: editingJob.salary || '',
-                Type: editingJob.Type || 'full-time',
+                jobType: editingJob.jobType || editingJob.Type || 'full-time',
+                workplace: editingJob.workplace || 'onsite',
             });
         }
     }, [editingJob]);
@@ -31,7 +33,7 @@ const JobForm = ({ onSubmit, editingJob, onCancel }) => {
         try {
             await onSubmit(form);
             if (!editingJob) {
-                setForm({ title: '', description: '', location: '', salary: '', Type: 'full-time' });
+                setForm({ title: '', description: '', location: '', salary: '', jobType: 'full-time', workplace: 'onsite' });
 }
         } catch (error) {
             console.error('Error submitting job:', error);
@@ -118,13 +120,13 @@ const JobForm = ({ onSubmit, editingJob, onCancel }) => {
 
             {/* Job Type */}
             <div>
-                <label htmlFor="Type" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="jobType" className="block text-sm font-medium text-gray-700 mb-2">
                     Job Type *
                 </label>
                 <select
-                    id="Type"
-                    name="Type"
-                    value={form.Type}
+                    id="jobType"
+                    name="jobType"
+                    value={form.jobType}
                     onChange={handleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200"
                     required
@@ -134,6 +136,24 @@ const JobForm = ({ onSubmit, editingJob, onCancel }) => {
                     <option value="contract">Contract</option>
                     <option value="internship">Internship</option>
                     <option value="freelance">Freelance</option>
+                </select>
+            </div>
+
+            <div>
+                <label htmlFor="workplace" className="block text-sm font-medium text-gray-700 mb-2">
+                    Workplace *
+                </label>
+                <select
+                    id="workplace"
+                    name="workplace"
+                    value={form.workplace}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200"
+                    required
+                >
+                    <option value="onsite">On-site</option>
+                    <option value="remote">Remote</option>
+                    <option value="hybrid">Hybrid</option>
                 </select>
             </div>
 

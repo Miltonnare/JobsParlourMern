@@ -10,6 +10,11 @@ import { useContext } from 'react';
 import { AuthContext } from './context/authContext';
 import { Toaster } from 'react-hot-toast';
 import MyApplications from './pages/MyApplications';
+import JobDetails from './pages/JobDetails';
+import SavedJobs from './pages/SavedJobs';
+import Profile from './pages/Profile';
+import Notifications from './pages/Notifications';
+import AdminDashboard from './pages/AdminDashboard';
 
 function App(){
   const { user, logout } = useContext(AuthContext);
@@ -18,7 +23,9 @@ function App(){
   const LandingPageWrapper = () => {
     if (user) {
       // Redirect logged-in users to their appropriate dashboard
-      if (user.user?.role === 'employer') {
+      if (user.user?.role === 'admin') {
+        return <Navigate to="/admin" replace />;
+      } else if (user.user?.role === 'employer') {
         return <Navigate to="/employer-dashboard" replace />;
       } else if (user.user?.role === 'jobseeker') {
         return <Navigate to="/dashboard" replace />;
@@ -31,7 +38,9 @@ function App(){
   const LoginWrapper = () => {
     if (user) {
       // Redirect logged-in users to their appropriate dashboard
-      if (user.user?.role === 'employer') {
+      if (user.user?.role === 'admin') {
+        return <Navigate to="/admin" replace />;
+      } else if (user.user?.role === 'employer') {
         return <Navigate to="/employer-dashboard" replace />;
       } else if (user.user?.role === 'jobseeker') {
         return <Navigate to="/dashboard" replace />;
@@ -44,7 +53,9 @@ function App(){
   const RegisterWrapper = () => {
     if (user) {
       // Redirect logged-in users to their appropriate dashboard
-      if (user.user?.role === 'employer') {
+      if (user.user?.role === 'admin') {
+        return <Navigate to="/admin" replace />;
+      } else if (user.user?.role === 'employer') {
         return <Navigate to="/employer-dashboard" replace />;
       } else if (user.user?.role === 'jobseeker') {
         return <Navigate to="/dashboard" replace />;
@@ -91,6 +102,23 @@ function App(){
     return <EmployerDashboard />;
   };
 
+  const AdminDashboardWrapper = () => {
+    if (!user || !user.token) {
+      return <Navigate to="/login" replace />;
+    }
+    if (user.user?.role !== 'admin') {
+      return <Navigate to="/" replace />;
+    }
+    return <AdminDashboard />;
+  };
+
+  const AuthenticatedWrapper = ({ children }) => {
+    if (!user || !user.token) {
+      return <Navigate to="/login" replace />;
+    }
+    return children;
+  };
+
   // Component to handle my applications page access
   const MyApplicationsWrapper = () => {
     if (!user || !user.token) {
@@ -108,6 +136,18 @@ function App(){
     return <MyApplications />;
   };
 
+  const SavedJobsWrapper = () => {
+    if (!user || !user.token) {
+      return <Navigate to="/login" replace />;
+    }
+    if (user.user?.role !== 'jobseeker') {
+      return user.user?.role === 'employer'
+        ? <Navigate to="/employer-dashboard" replace />
+        : <Navigate to="/login" replace />;
+    }
+    return <SavedJobs />;
+  };
+
   return(
     <>
       <Toaster position="top-right" />
@@ -123,10 +163,17 @@ function App(){
           <Route path="/dashboard" element={<JobSeekerDashboardWrapper />} />
           <Route path="/employer-dashboard" element={<EmployerDashboardWrapper />} />
           <Route path="/my-applications" element={<MyApplicationsWrapper />} />
+          <Route path="/jobs/:id" element={<JobDetails />} />
+          <Route path="/saved-jobs" element={<SavedJobsWrapper />} />
+          <Route path="/profile" element={<AuthenticatedWrapper><Profile /></AuthenticatedWrapper>} />
+          <Route path="/notifications" element={<AuthenticatedWrapper><Notifications /></AuthenticatedWrapper>} />
+          <Route path="/admin" element={<AdminDashboardWrapper />} />
 
           {/* Catch-all route - redirect to appropriate page */}
           <Route path="*" element={
             user ? (
+              user.user?.role === 'admin' ?
+                <Navigate to="/admin" replace /> :
               user.user?.role === 'employer' ? 
                 <Navigate to="/employer-dashboard" replace /> : 
                 <Navigate to="/dashboard" replace />

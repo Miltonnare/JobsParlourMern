@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {createContext,useState,} from 'react';
 
 export const AuthContext=createContext();
@@ -19,8 +20,14 @@ const AuthProvider=({children})=>{
         setUser(null)
     };
 
+    const updateAuthUser=(profile)=>{
+        const nextUser={...user,user:{...user.user,...profile}};
+        localStorage.setItem('user',JSON.stringify(nextUser));
+        setUser(nextUser);
+    };
+
     return(
-        <AuthContext.Provider value={{user,login,logout}}>
+        <AuthContext.Provider value={{user,login,logout,updateAuthUser}}>
             {children}
         </AuthContext.Provider>
     )
