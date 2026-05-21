@@ -15,6 +15,7 @@ import SavedJobs from './pages/SavedJobs';
 import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
 import AdminDashboard from './pages/AdminDashboard';
+import VerifyEmail from './pages/VerifyEmail';
 
 function App(){
   const { user, logout } = useContext(AuthContext);
@@ -158,6 +159,7 @@ function App(){
           <Route path='/' element={<LandingPageWrapper />} />
           <Route path="/register" element={<RegisterWrapper />} />
           <Route path="/login" element={<LoginWrapper />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
 
           {/* Protected dashboard routes with role-based access */}
           <Route path="/dashboard" element={<JobSeekerDashboardWrapper />} />

@@ -10,20 +10,140 @@ const UserSchema=new mongoose.Schema(
             required:true,
             unique:true
         },
+        emailVerified:{
+            type:Boolean,
+            default:false
+        },
+        emailVerificationToken:{
+            type:String
+        },
+        emailVerificationExpires:{
+            type:Date
+        },
         password:{
             type:String,
-            required:String
+            required:true
         },
         role:{
             type:String,
-            enum:['employer','jobseeker'],
+            enum:['admin','employer','jobseeker'],
             required:true
         },
         companyName:{
             type:String
-        }
+        },
+        companyWebsite:{
+            type:String
+        },
+        companyLogo:{
+            type:String
+        },
+        profileImage:{
+            type:String
+        },
+        industry:{
+            type:String
+        },
+        companyDescription:{
+            type:String
+        },
+        bio:{
+            type:String
+        },
+        skills:[String],
+        education:{
+            type:String
+        },
+        experience:{
+            type:String
+        },
+        resumeUrl:{
+            type:String
+        },
+        resumeText:{
+            type:String
+        },
+        expectedRate:{
+            type:Number
+        },
+        availability:{
+            type:String
+        },
+        onboarding:{
+            completed:{
+                type:Boolean,
+                default:false
+            },
+            currentStep:{
+                type:String,
+                default:'profile'
+            },
+            completedSteps:[String],
+            answers:{
+                type:Object,
+                default:{}
+            },
+            completedAt:{
+                type:Date
+            }
+        },
+        personalization:{
+            targetRoles:[String],
+            preferredLocations:[String],
+            preferredJobTypes:[String],
+            preferredWorkplaces:[String],
+            preferredIndustries:[String],
+            salaryMin:Number,
+            salaryMax:Number,
+            openToBids:{
+                type:Boolean,
+                default:true
+            },
+            bidCurrency:{
+                type:String,
+                default:'USD'
+            },
+            skillsToImprove:[String],
+            hiringGoals:[String],
+            companySize:String,
+            preferredCandidateSkills:[String],
+            hiringBudgetMin:Number,
+            hiringBudgetMax:Number,
+            jobPostFrequency:String,
+            applicantSortPreference:{
+                type:String,
+                enum:['newest','ats-high','bid-low','bid-high'],
+                default:'ats-high'
+            },
+            notificationPreferences:{
+                email:{
+                    type:Boolean,
+                    default:true
+                },
+                inApp:{
+                    type:Boolean,
+                    default:true
+                }
+            },
+            locale:{
+                type:String,
+                default:'en'
+            },
+            timezone:{
+                type:String,
+                default:'Africa/Nairobi'
+            }
+        },
+        currentSubscription:{
+            type:mongoose.Schema.Types.ObjectId,
+            ref:'subscriptionModel'
+        },
+        savedJobs:[{
+            type:mongoose.Schema.Types.ObjectId,
+            ref:'jobModel'
+        }]
 
-    },{timeseries:true}
+    },{timestamps:true}
 );
 
 

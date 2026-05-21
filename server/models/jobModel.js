@@ -14,6 +14,28 @@ const jobSchema=new mongoose.Schema({
         enum:['full-time','part-time','internship','contract','freelance'],
         default:'full-time',
     },
+    workplace:{
+        type:String,
+        enum:['onsite','remote','hybrid'],
+        default:'onsite'
+    },
+    status:{
+        type:String,
+        enum:['active','closed','draft'],
+        default:'active'
+    },
+    paymentStatus:{
+        type:String,
+        enum:['not_required','unpaid','paid'],
+        default:'not_required'
+    },
+    isFeatured:{
+        type:Boolean,
+        default:false
+    },
+    paidAt:{
+        type:Date
+    },
     location:{
         type:String,
         required:true
@@ -35,6 +57,68 @@ const jobSchema=new mongoose.Schema({
             appliedAt: {
                 type: Date,
                 default: Date.now
+            },
+            status:{
+                type:String,
+                enum:['pending','shortlisted','rejected','hired'],
+                default:'pending'
+            },
+            note:{
+                type:String,
+                default:''
+            },
+            resumeUrl:{
+                type:String,
+                default:''
+            },
+            resumeText:{
+                type:String,
+                default:''
+            },
+            bid:{
+                amount:{
+                    type:Number
+                },
+                currency:{
+                    type:String,
+                    default:'USD'
+                },
+                type:{
+                    type:String,
+                    enum:['fixed','hourly','monthly'],
+                    default:'fixed'
+                },
+                estimatedDuration:{
+                    type:String,
+                    default:''
+                },
+                availability:{
+                    type:String,
+                    default:''
+                }
+            },
+            ats:{
+                score:{
+                    type:Number,
+                    default:0
+                },
+                matchedKeywords:[String],
+                missingKeywords:[String],
+                summary:{
+                    type:String,
+                    default:''
+                }
+            },
+            candidateSnapshot:{
+                name:String,
+                email:String,
+                bio:String,
+                skills:[String],
+                education:String,
+                experience:String,
+                resumeUrl:String,
+                expectedRate:Number,
+                availability:String
             }
         }
     ]

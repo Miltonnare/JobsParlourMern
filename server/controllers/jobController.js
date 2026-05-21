@@ -1,9 +1,56 @@
 
 const Job = require('../models/jobModel');
 const User = require('../models/userModel');
+const Notification = require('../models/notificationModel');
+const Report = require('../models/reportModel');
+
+const STOP_WORDS = new Set([
+  'and','or','the','a','an','to','of','in','for','with','on','at','by','from','is','are','be','as','we','you',
+  'your','our','this','that','will','can','have','has','job','role','work','team','candidate','experience'
+]);
+
+const tokenize = (value = '') => String(value)
+  .toLowerCase()
+  .replace(/[^a-z0-9+#. ]/g, ' ')
+  .split(/\s+/)
+  .map(token => token.trim())
+  .filter(token => token.length > 2 && !STOP_WORDS.has(token));
+
+const unique = (items) => [...new Set(items)];
+
+const calculateAtsScore = (job, candidate, note = '', resumeText = '') => {
+  const jobKeywords = unique(tokenize(`${job.title} ${job.description} ${job.jobType} ${job.location}`)).slice(0, 30);
+  const candidateText = [
+    candidate.bio,
+    candidate.education,
+    candidate.experience,
+    resumeText,
+    note,
+    ...(candidate.skills || [])
+  ].join(' ');
+  const candidateKeywords = new Set(tokenize(candidateText));
+  const matchedKeywords = jobKeywords.filter(keyword => candidateKeywords.has(keyword));
+  const missingKeywords = jobKeywords.filter(keyword => !candidateKeywords.has(keyword)).slice(0, 10);
+  const keywordScore = jobKeywords.length ? Math.round((matchedKeywords.length / jobKeywords.length) * 85) : 0;
+  const profileBonus = Math.min([
+    candidate.resumeUrl,
+    candidate.experience,
+    candidate.education,
+    candidate.skills?.length,
+    note
+  ].filter(Boolean).length * 3, 15);
+  const score = Math.min(keywordScore + profileBonus, 100);
+
+  return {
+    score,
+    matchedKeywords: matchedKeywords.slice(0, 15),
+    missingKeywords,
+    summary: `${score}% match based on ${matchedKeywords.length} matched keyword${matchedKeywords.length === 1 ? '' : 's'} and profile completeness.`
+  };
+};
 
 const createJob=async (req,res)=>{
-    const {title,description,location,jobType,salary}=req.body;
+    const {title,description,location,jobType,Type,salary,workplace,status}=req.body;
 
     if(!title||!location){
         return res.status(400).json({message:"Title and Location are mandatory"});
@@ -13,8 +60,10 @@ const createJob=async (req,res)=>{
         title,
         description,
         location,
-        jobType,
+        jobType:jobType || Type || 'full-time',
         salary,
+        workplace:workplace || 'onsite',
+        status:status || 'active',
         createdBy:req.user._id
 
 
@@ -25,13 +74,90 @@ const createJob=async (req,res)=>{
 
 
 const getAllJobs=async (req,res)=>{
-    const Jobs=await Job.find().populate('createdBy','name companyName');
+    const {
+      search,
+      jobType,
+      location,
+      company,
+      workplace,
+      status='active',
+      minSalary,
+      maxSalary,
+      dateFrom,
+      dateTo,
+      postedWithin,
+      sort='newest',
+      page=1,
+      limit=12
+    }=req.query;
 
-    res.json(Jobs);
+    const query={};
+    if(company){
+      const matchingCompanies=await User.find({
+        role:'employer',
+        $or:[
+          {companyName:new RegExp(company,'i')},
+          {name:new RegExp(company,'i')}
+        ]
+      }).select('_id');
+
+      query.createdBy={ $in: matchingCompanies.map(employer=>employer._id) };
+    }
+    if(status!=='all') query.status=status;
+    if(jobType && jobType!=='all') query.jobType=jobType;
+    if(workplace && workplace!=='all') query.workplace=workplace;
+    if(location && location!=='all') query.location=new RegExp(location,'i');
+    if(dateFrom || dateTo || postedWithin){
+      query.createdAt={};
+      if(dateFrom) query.createdAt.$gte=new Date(dateFrom);
+      if(dateTo) query.createdAt.$lte=new Date(dateTo);
+      if(postedWithin){
+        const days=Number(postedWithin);
+        if(!Number.isNaN(days)){
+          query.createdAt.$gte=new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        }
+      }
+    }
+    if(minSalary || maxSalary){
+      query.salary={};
+      if(minSalary) query.salary.$gte=Number(minSalary);
+      if(maxSalary) query.salary.$lte=Number(maxSalary);
+    }
+    if(search){
+      query.$or=[
+        {title:new RegExp(search,'i')},
+        {description:new RegExp(search,'i')},
+        {location:new RegExp(search,'i')}
+      ];
+    }
+
+    let sortBy={createdAt:-1};
+    if(sort==='salary-high') sortBy={salary:-1};
+    if(sort==='salary-low') sortBy={salary:1};
+    if(sort==='oldest') sortBy={createdAt:1};
+
+    const safePage=Math.max(Number(page),1);
+    const safeLimit=Math.min(Math.max(Number(limit),1),50);
+
+    const [jobs,total]=await Promise.all([
+      Job.find(query)
+        .populate('createdBy','name companyName companyLogo industry companyWebsite companyDescription')
+        .sort(sortBy)
+        .skip((safePage-1)*safeLimit)
+        .limit(safeLimit),
+      Job.countDocuments(query)
+    ]);
+
+    res.json({
+      jobs,
+      total,
+      page:safePage,
+      pages:Math.max(Math.ceil(total/safeLimit),1)
+    });
 };
 
 const getJobById=async (req,res)=>{
-    const job=await Job.findById(req.params.id).populate('createdBy','name companyName');
+    const job=await Job.findById(req.params.id).populate('createdBy','name email companyName companyLogo companyWebsite industry companyDescription');
 
     if(!job) return res.status(404).json({message:'Job Not Found'});
 
@@ -47,8 +173,12 @@ const updateJob=async (req,res)=>{
         return res.status(403).json({message:"Not Authorized to Update this Job"});
     }
 
+    const payload={...req.body};
+    if(payload.Type && !payload.jobType) payload.jobType=payload.Type;
+    delete payload.Type;
+
     const updated=await Job.findByIdAndUpdate(req.params.id,
-        req.body,        
+        payload,        
       { new: true } 
     );
 
@@ -65,7 +195,7 @@ const deleteJob=async (req,res)=>{
     return res.status(403).json({ message: "Not authorized to delete this job" });
   };
 
-  await Job.deleteOne();
+  await Job.deleteOne({ _id: req.params.id });
   res.json({ message: "Job deleted" });
 };
 
@@ -73,15 +203,63 @@ const applyToJob = async (req, res) => {
   const jobId = req.params.id;
   const userId = req.user._id;
 
+  const {
+    note='',
+    resumeUrl='',
+    resumeText='',
+    bidAmount,
+    bidCurrency='USD',
+    bidType='fixed',
+    estimatedDuration='',
+    availability
+  }=req.body;
   const job = await Job.findById(jobId);
   if (!job) return res.status(404).json({ message: 'Job not found' });
+  if (job.status === 'closed') return res.status(400).json({ message: 'This job is closed' });
 
  
   const alreadyApplied = job.applications.find(app => app.user.toString() === userId.toString());
   if (alreadyApplied) return res.status(400).json({ message: 'You already applied for this job' });
 
-  job.applications.push({ user: userId });
+  const profileResumeUrl=resumeUrl || req.user.resumeUrl || '';
+  const profileResumeText=resumeText || req.user.resumeText || '';
+  const bidAmountNumber=bidAmount === '' || bidAmount === undefined ? req.user.expectedRate : Number(bidAmount);
+  const bid = {
+    amount: Number.isFinite(bidAmountNumber) ? bidAmountNumber : undefined,
+    currency: bidCurrency,
+    type: bidType,
+    estimatedDuration,
+    availability: availability || req.user.availability || ''
+  };
+  const candidateSnapshot = {
+    name: req.user.name,
+    email: req.user.email,
+    bio: req.user.bio || '',
+    skills: req.user.skills || [],
+    education: req.user.education || '',
+    experience: req.user.experience || '',
+    resumeUrl: profileResumeUrl,
+    expectedRate: req.user.expectedRate,
+    availability: req.user.availability || ''
+  };
+  const ats = calculateAtsScore(job, candidateSnapshot, note, profileResumeText);
+
+  job.applications.push({
+    user: userId,
+    note,
+    resumeUrl: profileResumeUrl,
+    resumeText: profileResumeText,
+    bid,
+    ats,
+    candidateSnapshot
+  });
   await job.save();
+
+  await Notification.create({
+    user:job.createdBy,
+    type:'application',
+    message:`${req.user.name} applied for ${job.title}${bid.amount ? ` with a ${bid.currency} ${bid.amount} bid` : ''}`
+  });
 
   res.status(200).json({ message: 'Application successful' });
 };
@@ -114,6 +292,10 @@ const getMyApplications = async (req, res) => {
               jobType: job.jobType,
             },
             status: app.status || 'pending',
+            note: app.note || '',
+            resumeUrl: app.resumeUrl || '',
+            bid: app.bid || {},
+            ats: app.ats || {},
             createdAt: app.appliedAt || app.createdAt || job.createdAt,
           });
         }
@@ -136,21 +318,130 @@ const  getMyApplicantsForEmployerByJobs=async (req,res)=>{
       .populate('applications.user', 'name email');
 
     // Format the response
-    const jobsWithApplicants = jobs.map(job => ({
-      jobId: job._id,
-      title: job.title,
-      applications: job.applications.map(app => ({
+    const formatApplication=(app)=>({
         _id: app._id,
         applicantId: app.user, // already populated with name/email
-        appliedAt: app.appliedAt
-      }))
-    }));
+        appliedAt: app.appliedAt,
+        status: app.status,
+        note: app.note,
+        resumeUrl: app.resumeUrl,
+        bid: app.bid || {},
+        ats: app.ats || {},
+        candidateSnapshot: app.candidateSnapshot || {}
+      });
+
+    const jobsWithApplicants = jobs.map(job => {
+      const applications=job.applications.map(formatApplication);
+      const grouped=applications.reduce((acc,app)=>{
+        const status=app.status || 'pending';
+        acc[status]=acc[status] || [];
+        acc[status].push(app);
+        return acc;
+      },{pending:[],shortlisted:[],rejected:[],hired:[]});
+
+      return {
+        jobId: job._id,
+        title: job.title,
+        status: job.status,
+        applications,
+        pipeline: grouped
+      };
+    });
 
     res.json(jobsWithApplicants);
   } catch (err) {
     console.error('Error in getMyApplicantsForEmployerByJobs:', err);
     res.status(500).json({ message: 'Server Error', error: err.message });
   }
+};
+
+const exportApplicantsCsv=async (req,res)=>{
+  const jobs=await Job.find({createdBy:req.user._id}).populate('applications.user','name email');
+  const rows=[
+    ['Job Title','Applicant Name','Applicant Email','Status','Applied At','Bid Amount','Bid Currency','Bid Type','ATS Score','Matched Keywords','Resume URL','Note']
+  ];
+
+  jobs.forEach(job=>{
+    job.applications.forEach(app=>{
+      rows.push([
+        job.title,
+        app.user?.name || '',
+        app.user?.email || '',
+        app.status || 'pending',
+        app.appliedAt ? app.appliedAt.toISOString() : '',
+        app.bid?.amount || '',
+        app.bid?.currency || '',
+        app.bid?.type || '',
+        app.ats?.score || 0,
+        (app.ats?.matchedKeywords || []).join('; '),
+        app.resumeUrl || '',
+        app.note || ''
+      ]);
+    });
+  });
+
+  const csv=rows.map(row=>row.map(value=>`"${String(value).replace(/"/g,'""')}"`).join(',')).join('\n');
+
+  res.setHeader('Content-Type','text/csv');
+  res.setHeader('Content-Disposition','attachment; filename="applicants.csv"');
+  res.send(csv);
+};
+
+const updateApplicationStatus=async (req,res)=>{
+  const {jobId,applicationId}=req.params;
+  const {status}=req.body;
+  const allowed=['pending','shortlisted','rejected','hired'];
+  if(!allowed.includes(status)) return res.status(400).json({message:'Invalid application status'});
+
+  const job=await Job.findById(jobId);
+  if(!job) return res.status(404).json({message:'Job not found'});
+  if(job.createdBy.toString()!==req.user._id.toString()) {
+    return res.status(403).json({message:'Not authorized to update this application'});
+  }
+
+  const application=job.applications.id(applicationId);
+  if(!application) return res.status(404).json({message:'Application not found'});
+
+  application.status=status;
+  await job.save();
+
+  await Notification.create({
+    user:application.user,
+    type:'status',
+    message:`Your application for ${job.title} is now ${status}`
+  });
+
+  res.json({message:'Application status updated',application});
+};
+
+const toggleJobStatus=async (req,res)=>{
+  const job=await Job.findById(req.params.id);
+  if(!job) return res.status(404).json({message:'Job not found'});
+  if(job.createdBy.toString()!==req.user._id.toString()) {
+    return res.status(403).json({message:'Not authorized to update this job'});
+  }
+
+  job.status=job.status==='closed' ? 'active' : 'closed';
+  await job.save();
+
+  res.json(job);
+};
+
+const reportJob=async (req,res)=>{
+  const {reason,details=''}=req.body;
+  if(!reason) return res.status(400).json({message:'Report reason is required'});
+
+  const job=await Job.findById(req.params.id);
+  if(!job) return res.status(404).json({message:'Job not found'});
+
+  const report=await Report.create({
+    job:req.params.id,
+    reportedBy:req.user._id,
+    reason,
+    details
+  });
+
+  res.status(201).json({message:'Job reported',report});
 };
 
 
@@ -162,5 +453,9 @@ module.exports={
     deleteJob,
     applyToJob,
     getMyApplications,
-    getMyApplicantsForEmployerByJobs
+    getMyApplicantsForEmployerByJobs,
+    exportApplicantsCsv,
+    updateApplicationStatus,
+    toggleJobStatus,
+    reportJob
 };
