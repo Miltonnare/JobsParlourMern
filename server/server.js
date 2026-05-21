@@ -1,4 +1,5 @@
 const express=require('express');
+const path=require('path');
 
 const dotenv=require('dotenv');
 const cors=require('cors');
@@ -32,6 +33,13 @@ app.use('/api/jobs',jobRoutes);
 app.use('/api/payments',paymentRoutes);
 
 app.use('/api/pricing',pricingRoutes);
+
+const clientDistPath=path.join(__dirname,'public');
+app.use(express.static(clientDistPath));
+
+app.get(/^\/(?!api).*/, (req, res) => {
+    res.sendFile(path.join(clientDistPath,'index.html'));
+});
 
 const PORT=process.env.PORT||5000;
 

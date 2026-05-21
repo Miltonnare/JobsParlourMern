@@ -1,0 +1,28 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: jobsparlour-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jobsparlour-app
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./server/.env
+    environment:
+      MONGO_URI: mongodb://mongo:27017/jobsparlour
+      CLIENT_URL: http://localhost:5000
+
+volumes:
+  mongo-data:
