@@ -9,6 +9,8 @@ const authRoutes=require('./routes/authRouter');
 const jobRoutes=require('./routes/jobRoute');
 const paymentRoutes=require('./routes/paymentRoute');
 const pricingRoutes=require('./routes/pricingRoute');
+const jobAlertRoutes=require('./routes/jobAlertRoute');
+const { initScheduler }=require('./utils/jobAlertScheduler');
 
 dotenv.config();
 
@@ -21,6 +23,7 @@ app.use(express.json({
     }
 }));
 connectDb();
+initScheduler();
 
 app.get('/',(req,res)=>{
     res.send("Job's Parlour API is running" );
@@ -33,6 +36,8 @@ app.use('/api/jobs',jobRoutes);
 app.use('/api/payments',paymentRoutes);
 
 app.use('/api/pricing',pricingRoutes);
+
+app.use('/api/job-alerts',jobAlertRoutes);
 
 const clientDistPath=path.join(__dirname,'public');
 app.use(express.static(clientDistPath));

@@ -69,8 +69,8 @@ const registerUser=async (req,res)=>{
             email,
             password:hashedPassword,
             role,
-            companyName:role==='employer' ? companyName:undefined
-
+            companyName:role==='employer' ? companyName:undefined,
+            employerRole:role==='employer' ? 'owner':undefined
         })
 
         await newUser.save();
@@ -514,6 +514,91 @@ const updateAdminReport=async (req,res)=>{
     res.json(report);
 };
 
+const addTeamMember = async (req, res) => {
+  try {
+    const { name, email, password, employerRole } = req.body;
+
+    if (!name || !email || !password || !employerRole) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    if (!['recruiter', 'hiring_manager'].includes(employerRole)) {
+      return res.status(400).json({ message: 'Invalid team role. Must be recruiter or hiring_manager' });
+    }
+
+    // Only owner can add team members
+    const isOwner = req.user.role === 'employer' && (!req.user.companyId || req.user.employerRole === 'owner');
+    if (!isOwner) {
+      return res.status(403).json({ message: 'Only company owners can manage the team' });
+    }
+
+    const existingUser = await user.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists with this email' });
+    }
+
+    const hashedPassword = await bycrypt.hash(password, 10);
+    const newMember = await user.create({
+      name,
+      email,
+      password: hashedPassword,
+      role: 'employer',
+      employerRole,
+      companyId: req.user._id,
+      companyName: req.user.companyName,
+      emailVerified: true // auto-verify since they are added by company owner
+    });
+
+    res.status(201).json({
+      id: newMember._id,
+      name: newMember.name,
+      email: newMember.email,
+      role: newMember.role,
+      employerRole: newMember.employerRole,
+      companyId: newMember.companyId
+    });
+  } catch (error) {
+    console.error('Error adding team member:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+const getTeamMembers = async (req, res) => {
+  try {
+    const ownerId = req.user.companyId || req.user._id;
+    const members = await user.find({ companyId: ownerId }).select('-password');
+    res.json(members);
+  } catch (error) {
+    console.error('Error listing team members:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+const removeTeamMember = async (req, res) => {
+  try {
+    const isOwner = req.user.role === 'employer' && (!req.user.companyId || req.user.employerRole === 'owner');
+    if (!isOwner) {
+      return res.status(403).json({ message: 'Only company owners can manage the team' });
+    }
+
+    const memberId = req.params.id;
+    const member = await user.findById(memberId);
+    if (!member) {
+      return res.status(404).json({ message: 'Team member not found' });
+    }
+
+    if (member.companyId?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'This user is not a member of your company' });
+    }
+
+    await user.deleteOne({ _id: memberId });
+    res.json({ message: 'Team member removed successfully' });
+  } catch (error) {
+    console.error('Error removing team member:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
 module.exports={
     registerUser,
     loginUser,
@@ -539,5 +624,8 @@ module.exports={
     deleteAdminUser,
     deleteAdminJob,
     getAdminReports,
-    updateAdminReport
+    updateAdminReport,
+    addTeamMember,
+    getTeamMembers,
+    removeTeamMember
 };

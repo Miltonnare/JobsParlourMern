@@ -43,6 +43,21 @@ const jobSchema=new mongoose.Schema({
     salary:{
         type:Number
     },
+    featuredUntil:{
+        type:Date
+    },
+    views:{
+        type:Number,
+        default:0
+    },
+    clicks:{
+        type:Number,
+        default:0
+    },
+    applicationCount:{
+        type:Number,
+        default:0
+    },
     createdBy:{
         type:mongoose.Schema.Types.ObjectId,
         ref:'UserModel',
@@ -119,7 +134,38 @@ const jobSchema=new mongoose.Schema({
                 resumeUrl:String,
                 expectedRate:Number,
                 availability:String
-            }
+            },
+            stage:{
+                type:String,
+                enum:['applied','screening','interviewing','offered','hired','rejected'],
+                default:'applied'
+            },
+            interviews:[
+                {
+                    scheduledAt:{type:Date},
+                    duration:{type:Number,default:30},
+                    type:{type:String,enum:['technical','hr','behavioral','other'],default:'technical'},
+                    status:{type:String,enum:['scheduled','completed','cancelled'],default:'scheduled'},
+                    feedback:{type:String,default:''},
+                    interviewer:{type:String,default:''}
+                }
+            ],
+            notes:[
+                {
+                    note:{type:String,required:true},
+                    addedBy:{type:mongoose.Schema.Types.ObjectId,ref:'UserModel'},
+                    addedByName:{type:String},
+                    createdAt:{type:Date,default:Date.now}
+                }
+            ],
+            stageHistory:[
+                {
+                    stage:{type:String},
+                    updatedBy:{type:mongoose.Schema.Types.ObjectId,ref:'UserModel'},
+                    updatedByName:{type:String},
+                    updatedAt:{type:Date,default:Date.now}
+                }
+            ]
         }
     ]
 },{timestamps:true});

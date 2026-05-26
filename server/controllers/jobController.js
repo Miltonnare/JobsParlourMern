@@ -64,7 +64,7 @@ const createJob=async (req,res)=>{
         salary,
         workplace:workplace || 'onsite',
         status:status || 'active',
-        createdBy:req.user._id
+        createdBy:req.user.companyId || req.user._id
 
 
     });
@@ -169,7 +169,7 @@ const updateJob=async (req,res)=>{
 
     if(!job) return res.status(404).json({message:'Job Not Found'});
 
-    if(job.createdBy.toString()!==req.user._id.toString()){
+    if(job.createdBy.toString()!==(req.user.companyId || req.user._id).toString()){
         return res.status(403).json({message:"Not Authorized to Update this Job"});
     }
 
@@ -191,7 +191,7 @@ const deleteJob=async (req,res)=>{
         return res.status(404).json({message:"Job Not Found"})
     };
 
-    if (job.createdBy.toString() !== req.user._id.toString()) {
+    if (job.createdBy.toString() !== (req.user.companyId || req.user._id).toString()) {
     return res.status(403).json({ message: "Not authorized to delete this job" });
   };
 
@@ -253,6 +253,7 @@ const applyToJob = async (req, res) => {
     ats,
     candidateSnapshot
   });
+  job.applicationCount = (job.applicationCount || 0) + 1;
   await job.save();
 
   await Notification.create({
@@ -311,7 +312,7 @@ const getMyApplications = async (req, res) => {
 
 const  getMyApplicantsForEmployerByJobs=async (req,res)=>{
   try {
-    const employerId = req.user._id; // use _id, not id
+    const employerId = req.user.companyId || req.user._id; // use owner _id if part of team
 
     // Find jobs created by this employer, and populate applications.user
     const jobs = await Job.find({ createdBy: employerId })
@@ -356,7 +357,7 @@ const  getMyApplicantsForEmployerByJobs=async (req,res)=>{
 };
 
 const exportApplicantsCsv=async (req,res)=>{
-  const jobs=await Job.find({createdBy:req.user._id}).populate('applications.user','name email');
+  const jobs=await Job.find({createdBy: req.user.companyId || req.user._id}).populate('applications.user','name email');
   const rows=[
     ['Job Title','Applicant Name','Applicant Email','Status','Applied At','Bid Amount','Bid Currency','Bid Type','ATS Score','Matched Keywords','Resume URL','Note']
   ];
@@ -395,7 +396,7 @@ const updateApplicationStatus=async (req,res)=>{
 
   const job=await Job.findById(jobId);
   if(!job) return res.status(404).json({message:'Job not found'});
-  if(job.createdBy.toString()!==req.user._id.toString()) {
+  if(job.createdBy.toString()!==(req.user.companyId || req.user._id).toString()) {
     return res.status(403).json({message:'Not authorized to update this application'});
   }
 
@@ -417,7 +418,7 @@ const updateApplicationStatus=async (req,res)=>{
 const toggleJobStatus=async (req,res)=>{
   const job=await Job.findById(req.params.id);
   if(!job) return res.status(404).json({message:'Job not found'});
-  if(job.createdBy.toString()!==req.user._id.toString()) {
+  if(job.createdBy.toString()!==(req.user.companyId || req.user._id).toString()) {
     return res.status(403).json({message:'Not authorized to update this job'});
   }
 
@@ -444,6 +445,204 @@ const reportJob=async (req,res)=>{
   res.status(201).json({message:'Job reported',report});
 };
 
+const scheduleInterview = async (req, res) => {
+  try {
+    const { jobId, applicationId } = req.params;
+    const { scheduledAt, duration, type, interviewer } = req.body;
+
+    if (!scheduledAt) return res.status(400).json({ message: 'scheduledAt is required' });
+
+    const job = await Job.findById(jobId);
+    if (!job) return res.status(404).json({ message: 'Job not found' });
+
+    const employerId = req.user.companyId || req.user._id;
+    if (job.createdBy.toString() !== employerId.toString()) {
+      return res.status(403).json({ message: 'Not authorized to manage this job' });
+    }
+
+    const application = job.applications.id(applicationId);
+    if (!application) return res.status(404).json({ message: 'Application not found' });
+
+    application.interviews.push({
+      scheduledAt: new Date(scheduledAt),
+      duration: duration ? Number(duration) : 30,
+      type: type || 'technical',
+      interviewer: interviewer || req.user.name,
+      status: 'scheduled'
+    });
+
+    await job.save();
+
+    await Notification.create({
+      user: application.user,
+      type: 'system',
+      message: `An interview has been scheduled for ${job.title} on ${new Date(scheduledAt).toLocaleString()}`
+    });
+
+    res.status(201).json({ message: 'Interview scheduled', application });
+  } catch (error) {
+    console.error('Error in scheduleInterview:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+const addApplicationNote = async (req, res) => {
+  try {
+    const { jobId, applicationId } = req.params;
+    const { note } = req.body;
+
+    if (!note) return res.status(400).json({ message: 'Note content is required' });
+
+    const job = await Job.findById(jobId);
+    if (!job) return res.status(404).json({ message: 'Job not found' });
+
+    const employerId = req.user.companyId || req.user._id;
+    if (job.createdBy.toString() !== employerId.toString()) {
+      return res.status(403).json({ message: 'Not authorized to manage this job' });
+    }
+
+    const application = job.applications.id(applicationId);
+    if (!application) return res.status(404).json({ message: 'Application not found' });
+
+    application.notes.push({
+      note,
+      addedBy: req.user._id,
+      addedByName: req.user.name,
+      createdAt: new Date()
+    });
+
+    await job.save();
+    res.status(201).json({ message: 'Note added', application });
+  } catch (error) {
+    console.error('Error in addApplicationNote:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+const updateApplicationStage = async (req, res) => {
+  try {
+    const { jobId, applicationId } = req.params;
+    const { stage } = req.body;
+
+    const allowedStages = ['applied', 'screening', 'interviewing', 'offered', 'hired', 'rejected'];
+    if (!allowedStages.includes(stage)) {
+      return res.status(400).json({ message: 'Invalid pipeline stage' });
+    }
+
+    const job = await Job.findById(jobId);
+    if (!job) return res.status(404).json({ message: 'Job not found' });
+
+    const employerId = req.user.companyId || req.user._id;
+    if (job.createdBy.toString() !== employerId.toString()) {
+      return res.status(403).json({ message: 'Not authorized to manage this job' });
+    }
+
+    const application = job.applications.id(applicationId);
+    if (!application) return res.status(404).json({ message: 'Application not found' });
+
+    application.stage = stage;
+    
+    // Sync application status
+    if (stage === 'rejected') {
+      application.status = 'rejected';
+    } else if (stage === 'hired') {
+      application.status = 'hired';
+    } else if (['screening', 'interviewing', 'offered'].includes(stage)) {
+      application.status = 'shortlisted';
+    } else {
+      application.status = 'pending';
+    }
+
+    application.stageHistory.push({
+      stage,
+      updatedBy: req.user._id,
+      updatedByName: req.user.name,
+      updatedAt: new Date()
+    });
+
+    await job.save();
+
+    await Notification.create({
+      user: application.user,
+      type: 'status',
+      message: `Your application status for ${job.title} has been moved to ${stage}`
+    });
+
+    res.json({ message: 'Application stage updated', application });
+  } catch (error) {
+    console.error('Error in updateApplicationStage:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+const getApplicationTimeline = async (req, res) => {
+  try {
+    const { jobId, applicationId } = req.params;
+
+    const job = await Job.findById(jobId);
+    if (!job) return res.status(404).json({ message: 'Job not found' });
+
+    const employerId = req.user.companyId || req.user._id;
+    const isEmployer = job.createdBy.toString() === employerId.toString();
+    const application = job.applications.id(applicationId);
+    if (!application) return res.status(404).json({ message: 'Application not found' });
+
+    const isApplicant = application.user.toString() === req.user._id.toString();
+    if (!isEmployer && !isApplicant) {
+      return res.status(403).json({ message: 'Not authorized to view this application timeline' });
+    }
+
+    const timeline = [];
+
+    // 1. Applied event
+    timeline.push({
+      type: 'applied',
+      title: 'Application Submitted',
+      description: 'Candidate submitted their application.',
+      timestamp: application.appliedAt
+    });
+
+    // 2. Stage History events
+    application.stageHistory.forEach(hist => {
+      timeline.push({
+        type: 'stage_change',
+        title: `Moved to ${hist.stage.toUpperCase()}`,
+        description: `Status updated by ${hist.updatedByName || 'Employer'}`,
+        timestamp: hist.updatedAt
+      });
+    });
+
+    // 3. Interviews
+    application.interviews.forEach(interview => {
+      timeline.push({
+        type: 'interview',
+        title: `Interview Scheduled (${interview.type})`,
+        description: `Scheduled with ${interview.interviewer || 'Interviewer'} on ${new Date(interview.scheduledAt).toLocaleString()}. Status: ${interview.status}`,
+        timestamp: interview.scheduledAt
+      });
+    });
+
+    // 4. Notes (Only visible to employer team)
+    if (isEmployer) {
+      application.notes.forEach(note => {
+        timeline.push({
+          type: 'note',
+          title: `Interviewer Note by ${note.addedByName}`,
+          description: note.note,
+          timestamp: note.createdAt
+        });
+      });
+    }
+
+    // Sort chronologically
+    timeline.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    res.json(timeline);
+  } catch (error) {
+    console.error('Error in getApplicationTimeline:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
 
 module.exports={
     createJob,
@@ -457,5 +656,9 @@ module.exports={
     exportApplicantsCsv,
     updateApplicationStatus,
     toggleJobStatus,
-    reportJob
+    reportJob,
+    scheduleInterview,
+    addApplicationNote,
+    updateApplicationStage,
+    getApplicationTimeline
 };

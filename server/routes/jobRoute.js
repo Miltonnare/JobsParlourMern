@@ -2,7 +2,24 @@ const express=require('express');
 
 const router=express.Router();
 
-const {createJob,getAllJobs,getJobById,updateJob,deleteJob,applyToJob,getMyApplications, getMyApplicantsForEmployerByJobs, exportApplicantsCsv, updateApplicationStatus, toggleJobStatus, reportJob} =require('../controllers/jobController');
+const {
+  createJob,
+  getAllJobs,
+  getJobById,
+  updateJob,
+  deleteJob,
+  applyToJob,
+  getMyApplications,
+  getMyApplicantsForEmployerByJobs,
+  exportApplicantsCsv,
+  updateApplicationStatus,
+  toggleJobStatus,
+  reportJob,
+  scheduleInterview,
+  addApplicationNote,
+  updateApplicationStage,
+  getApplicationTimeline
+} =require('../controllers/jobController');
 const { protect } = require('../middleware/authMiddleware');
 const restrictTo = require('../middleware/roleMiddleware');
 
@@ -23,5 +40,10 @@ router.patch('/:jobId/applications/:applicationId/status',protect,restrictTo('em
 router.post('/:id/apply', protect, restrictTo('jobseeker'), applyToJob);
 router.post('/:id/report', protect, reportJob);
 
+// Interview Pipeline Routes
+router.post('/:jobId/applications/:applicationId/interviews', protect, restrictTo('employer'), scheduleInterview);
+router.post('/:jobId/applications/:applicationId/notes', protect, restrictTo('employer'), addApplicationNote);
+router.put('/:jobId/applications/:applicationId/stage', protect, restrictTo('employer'), updateApplicationStage);
+router.get('/:jobId/applications/:applicationId/timeline', protect, getApplicationTimeline);
 
 module.exports=router;

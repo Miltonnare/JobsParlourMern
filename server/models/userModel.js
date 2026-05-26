@@ -141,7 +141,18 @@ const UserSchema=new mongoose.Schema(
         savedJobs:[{
             type:mongoose.Schema.Types.ObjectId,
             ref:'jobModel'
-        }]
+        }],
+        employerRole:{
+            type:String,
+            enum:['owner','recruiter','hiring_manager']
+        },
+        companyId:{
+            type:mongoose.Schema.Types.ObjectId,
+            ref:'UserModel'
+        },
+        boostedUntil:{
+            type:Date
+        }
 
     },{timestamps:true}
 );

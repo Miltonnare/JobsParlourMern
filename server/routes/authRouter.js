@@ -25,7 +25,10 @@ const {
     deleteAdminUser,
     deleteAdminJob,
     getAdminReports,
-    updateAdminReport
+    updateAdminReport,
+    addTeamMember,
+    getTeamMembers,
+    removeTeamMember
 }=require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 const restrictTo = require('../middleware/roleMiddleware');
@@ -64,6 +67,8 @@ router.delete('/admin/jobs/:id',protect,restrictTo('admin'),deleteAdminJob);
 router.get('/admin/reports',protect,restrictTo('admin'),getAdminReports);
 router.patch('/admin/reports/:id',protect,restrictTo('admin'),updateAdminReport);
 
-
+router.post('/team',protect,restrictTo('employer'),addTeamMember);
+router.get('/team',protect,restrictTo('employer'),getTeamMembers);
+router.delete('/team/:id',protect,restrictTo('employer'),removeTeamMember);
 
 module.exports=router;
