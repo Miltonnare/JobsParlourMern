@@ -46,6 +46,9 @@ const jobSchema=new mongoose.Schema({
     featuredUntil:{
         type:Date
     },
+    featuredActivatedAt:{
+        type:Date
+    },
     views:{
         type:Number,
         default:0
@@ -53,6 +56,19 @@ const jobSchema=new mongoose.Schema({
     clicks:{
         type:Number,
         default:0
+    },
+    featuredAnalytics:{
+        impressions:{
+            type:Number,
+            default:0
+        },
+        clicks:{
+            type:Number,
+            default:0
+        },
+        lastFeaturedAt:{
+            type:Date
+        }
     },
     applicationCount:{
         type:Number,
@@ -147,7 +163,10 @@ const jobSchema=new mongoose.Schema({
                     type:{type:String,enum:['technical','hr','behavioral','other'],default:'technical'},
                     status:{type:String,enum:['scheduled','completed','cancelled'],default:'scheduled'},
                     feedback:{type:String,default:''},
-                    interviewer:{type:String,default:''}
+                    interviewer:{type:String,default:''},
+                    location:{type:String,default:''},
+                    meetingLink:{type:String,default:''},
+                    completedAt:{type:Date}
                 }
             ],
             notes:[

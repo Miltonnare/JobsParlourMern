@@ -3,7 +3,7 @@ const JobAlert = require('../models/jobAlertModel');
 // Create a new job alert
 const createJobAlert = async (req, res) => {
   try {
-    const { keywords, categories, locations, frequency } = req.body;
+    const { name, keywords, categories, locations, frequency, isActive, alertEnabled } = req.body;
 
     if (frequency && !['daily', 'weekly'].includes(frequency)) {
       return res.status(400).json({ message: "Frequency must be 'daily' or 'weekly'" });
@@ -11,11 +11,13 @@ const createJobAlert = async (req, res) => {
 
     const jobAlert = await JobAlert.create({
       userId: req.user._id,
+      name: name || '',
       keywords: keywords || [],
       categories: categories || [],
       locations: locations || [],
       frequency: frequency || 'daily',
-      isActive: true,
+      isActive: isActive !== undefined ? Boolean(isActive) : true,
+      alertEnabled: alertEnabled !== undefined ? Boolean(alertEnabled) : true,
       lastSent: new Date() // Start tracking from creation time onwards
     });
 
@@ -41,7 +43,7 @@ const getMyJobAlerts = async (req, res) => {
 const updateJobAlert = async (req, res) => {
   try {
     const alertId = req.params.id;
-    const { keywords, categories, locations, frequency, isActive } = req.body;
+    const { name, keywords, categories, locations, frequency, isActive, alertEnabled } = req.body;
 
     const alert = await JobAlert.findById(alertId);
     if (!alert) {
@@ -56,11 +58,13 @@ const updateJobAlert = async (req, res) => {
       return res.status(400).json({ message: "Frequency must be 'daily' or 'weekly'" });
     }
 
+    if (name !== undefined) alert.name = name;
     if (keywords !== undefined) alert.keywords = keywords;
     if (categories !== undefined) alert.categories = categories;
     if (locations !== undefined) alert.locations = locations;
     if (frequency !== undefined) alert.frequency = frequency;
     if (isActive !== undefined) alert.isActive = isActive;
+    if (alertEnabled !== undefined) alert.alertEnabled = Boolean(alertEnabled);
 
     const updatedAlert = await alert.save();
     res.json(updatedAlert);

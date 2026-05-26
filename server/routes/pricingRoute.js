@@ -5,7 +5,9 @@ const {
   createPricingPlan,
   updatePricingPlan,
   getMySubscription,
-  activateFreePlan
+  activateFreePlan,
+  changeSubscriptionPlan,
+  cancelSubscription
 } = require('../controllers/pricingController');
 const { protect } = require('../middleware/authMiddleware');
 const restrictTo = require('../middleware/roleMiddleware');
@@ -18,5 +20,7 @@ router.post('/plans', protect, restrictTo('admin'), createPricingPlan);
 router.put('/plans/:id', protect, restrictTo('admin'), updatePricingPlan);
 router.get('/subscription/me', protect, getMySubscription);
 router.post('/subscription/free/:planId', protect, activateFreePlan);
+router.post('/subscription/change-plan', protect, changeSubscriptionPlan);
+router.post('/subscription/cancel', protect, cancelSubscription);
 
 module.exports = router;

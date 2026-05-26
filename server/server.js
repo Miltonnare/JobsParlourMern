@@ -10,6 +10,8 @@ const jobRoutes=require('./routes/jobRoute');
 const paymentRoutes=require('./routes/paymentRoute');
 const pricingRoutes=require('./routes/pricingRoute');
 const jobAlertRoutes=require('./routes/jobAlertRoute');
+const savedSearchRoutes=require('./routes/savedSearchRoute');
+const messageRoutes=require('./routes/messageRoute');
 const { initScheduler }=require('./utils/jobAlertScheduler');
 
 dotenv.config();
@@ -38,6 +40,8 @@ app.use('/api/payments',paymentRoutes);
 app.use('/api/pricing',pricingRoutes);
 
 app.use('/api/job-alerts',jobAlertRoutes);
+app.use('/api/saved-searches',savedSearchRoutes);
+app.use('/api/messages',messageRoutes);
 
 const clientDistPath=path.join(__dirname,'public');
 app.use(express.static(clientDistPath));

@@ -1,56 +1,10 @@
 const PricingPlan = require('../models/pricingPlanModel');
 const Subscription = require('../models/subscriptionModel');
+const { DEFAULT_PLANS } = require('../config/defaultPlans');
 
-const DEFAULT_PLANS = [
-  {
-    name: 'Job Seeker Free',
-    slug: 'jobseeker-free',
-    role: 'jobseeker',
-    description: 'Basic job discovery and applications.',
-    price: 0,
-    currency: 'USD',
-    interval: 'free',
-    sortOrder: 1,
-    features: ['Browse jobs', 'Save jobs', 'Apply with profile', 'Basic ATS match'],
-    limits: { applicationsPerMonth: 10, savedJobs: 25 }
-  },
-  {
-    name: 'Job Seeker Pro',
-    slug: 'jobseeker-pro',
-    role: 'jobseeker',
-    description: 'More applications, bidding, and stronger candidate insights.',
-    price: 500,
-    currency: 'USD',
-    interval: 'monthly',
-    sortOrder: 2,
-    features: ['Unlimited applications', 'Application bidding', 'Advanced ATS insights', 'Profile boost'],
-    limits: { applicationsPerMonth: -1, savedJobs: -1, profileBoosts: 3 }
-  },
-  {
-    name: 'Employer Starter',
-    slug: 'employer-starter',
-    role: 'employer',
-    description: 'Post jobs and manage applicants.',
-    price: 1000,
-    currency: 'USD',
-    interval: 'monthly',
-    sortOrder: 1,
-    features: ['Post up to 3 jobs', 'Applicant pipeline', 'CSV export', 'Basic ATS sorting'],
-    limits: { activeJobs: 3, applicantExports: 5 }
-  },
-  {
-    name: 'Employer Growth',
-    slug: 'employer-growth',
-    role: 'employer',
-    description: 'Scale hiring with featured jobs and richer applicant tools.',
-    price: 3000,
-    currency: 'USD',
-    interval: 'monthly',
-    sortOrder: 2,
-    features: ['Unlimited jobs', 'Featured jobs', 'Advanced ATS ranking', 'Priority applicant pipeline'],
-    limits: { activeJobs: -1, featuredJobs: 5, applicantExports: -1 }
-  }
-];
+const getBillingUserId = (currentUser) => currentUser.role === 'employer' && currentUser.companyId
+  ? currentUser.companyId
+  : currentUser._id;
 
 const getPricingPlans = async (req, res) => {
   const query = { isActive: true };
@@ -88,7 +42,7 @@ const updatePricingPlan = async (req, res) => {
 
 const getMySubscription = async (req, res) => {
   const subscription = await Subscription.findOne({
-    user: req.user._id,
+    user: getBillingUserId(req.user),
     status: 'active',
     $or: [{ expiresAt: { $exists: false } }, { expiresAt: null }, { expiresAt: { $gt: new Date() } }]
   }).populate('plan payment');
@@ -102,9 +56,10 @@ const activateFreePlan = async (req, res) => {
   if (plan.role !== req.user.role) return res.status(403).json({ message: 'This plan is not available for your role' });
   if (plan.price > 0) return res.status(400).json({ message: 'Paid plans must be purchased through payments' });
 
-  await Subscription.updateMany({ user: req.user._id, status: 'active' }, { status: 'cancelled' });
+  const billingUserId = getBillingUserId(req.user);
+  await Subscription.updateMany({ user: billingUserId, status: 'active' }, { status: 'cancelled', cancelledAt: new Date() });
   const subscription = await Subscription.create({
-    user: req.user._id,
+    user: billingUserId,
     plan: plan._id,
     role: req.user.role,
     status: 'active'
@@ -116,11 +71,84 @@ const activateFreePlan = async (req, res) => {
   res.status(201).json({ message: 'Free plan activated', subscription });
 };
 
+const changeSubscriptionPlan = async (req, res) => {
+  const { planId } = req.body;
+  if (!planId) return res.status(400).json({ message: 'planId is required' });
+
+  const targetPlan = await PricingPlan.findById(planId);
+  if (!targetPlan) return res.status(404).json({ message: 'Pricing plan not found' });
+  if (targetPlan.role !== req.user.role) return res.status(403).json({ message: 'This plan is not available for your role' });
+
+  const billingUserId = getBillingUserId(req.user);
+  const currentSubscription = await Subscription.findOne({
+    user: billingUserId,
+    status: { $in: ['active', 'trialing', 'past_due'] }
+  }).populate('plan');
+
+  if (currentSubscription?.plan?._id?.toString() === targetPlan._id.toString()) {
+    return res.status(400).json({ message: 'You are already on this plan' });
+  }
+
+  if (targetPlan.price <= 0) {
+    await Subscription.updateMany({ user: billingUserId, status: { $in: ['active', 'trialing', 'past_due'] } }, {
+      status: 'cancelled',
+      cancelledAt: new Date()
+    });
+
+    const subscription = await Subscription.create({
+      user: billingUserId,
+      plan: targetPlan._id,
+      role: req.user.role,
+      status: 'active'
+    });
+
+    return res.json({
+      message: 'Plan changed successfully',
+      requiresPayment: false,
+      subscription
+    });
+  }
+
+  if (currentSubscription) {
+    currentSubscription.pendingPlan = targetPlan._id;
+    await currentSubscription.save();
+  }
+
+  res.json({
+    message: 'Plan change requested. Initialize a subscription payment to complete the upgrade or downgrade.',
+    requiresPayment: true,
+    nextStep: 'POST /api/payments/initialize with purpose=subscription and the target planId',
+    plan: targetPlan
+  });
+};
+
+const cancelSubscription = async (req, res) => {
+  const billingUserId = getBillingUserId(req.user);
+  const subscription = await Subscription.findOne({
+    user: billingUserId,
+    status: { $in: ['active', 'trialing', 'past_due'] }
+  }).populate('plan');
+
+  if (!subscription) return res.status(404).json({ message: 'No active subscription found' });
+
+  subscription.cancelAtPeriodEnd = true;
+  subscription.status = 'cancelled';
+  subscription.cancelledAt = new Date();
+  await subscription.save();
+
+  res.json({
+    message: 'Subscription cancelled',
+    subscription
+  });
+};
+
 module.exports = {
   getPricingPlans,
   seedPricingPlans,
   createPricingPlan,
   updatePricingPlan,
   getMySubscription,
-  activateFreePlan
+  activateFreePlan,
+  changeSubscriptionPlan,
+  cancelSubscription
 };

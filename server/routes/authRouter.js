@@ -28,10 +28,14 @@ const {
     updateAdminReport,
     addTeamMember,
     getTeamMembers,
-    removeTeamMember
+    removeTeamMember,
+    updateTeamMemberRole,
+    parseResumeAndScoreProfile,
+    boostProfile
 }=require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 const restrictTo = require('../middleware/roleMiddleware');
+const { enforcePlanLimit } = require('../middleware/subscriptionMiddleware');
 const {
     uploadResume: resumeUploadMiddleware,
     uploadImage: imageUploadMiddleware,
@@ -52,8 +56,10 @@ router.put('/onboarding',protect,updateOnboarding);
 router.get('/personalization',protect,getPersonalization);
 router.put('/personalization',protect,updatePersonalization);
 router.post('/resume',protect,restrictTo('jobseeker'),resumeUploadMiddleware.single('resume'),uploadResume);
+router.post('/resume/parse',protect,restrictTo('jobseeker'),parseResumeAndScoreProfile);
 router.post('/upload/image',protect,imageUploadMiddleware.single('image'),uploadProfileImage);
 router.post('/upload/file',protect,anyFileUploadMiddleware.single('file'),uploadGenericFile);
+router.post('/profile/boost',protect,restrictTo('jobseeker'),enforcePlanLimit('boost_profile'),boostProfile);
 router.get('/saved-jobs',protect,restrictTo('jobseeker'),getSavedJobs);
 router.post('/saved-jobs/:jobId',protect,restrictTo('jobseeker'),toggleSavedJob);
 router.get('/notifications',protect,getNotifications);
@@ -69,6 +75,7 @@ router.patch('/admin/reports/:id',protect,restrictTo('admin'),updateAdminReport)
 
 router.post('/team',protect,restrictTo('employer'),addTeamMember);
 router.get('/team',protect,restrictTo('employer'),getTeamMembers);
+router.patch('/team/:id/role',protect,restrictTo('employer'),updateTeamMemberRole);
 router.delete('/team/:id',protect,restrictTo('employer'),removeTeamMember);
 
 module.exports=router;

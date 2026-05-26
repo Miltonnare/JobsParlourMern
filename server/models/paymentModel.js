@@ -16,7 +16,7 @@ const paymentSchema = new mongoose.Schema({
   },
   purpose: {
     type: String,
-    enum: ['job_posting', 'featured_job', 'subscription'],
+    enum: ['job_posting', 'featured_job', 'subscription', 'profile_boost'],
     default: 'job_posting'
   },
   amount: {
@@ -34,8 +34,27 @@ const paymentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'success', 'failed', 'abandoned'],
+    enum: ['pending', 'success', 'failed', 'abandoned', 'retrying', 'cancelled'],
     default: 'pending'
+  },
+  invoiceNumber: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  failureReason: {
+    type: String,
+    default: ''
+  },
+  retryCount: {
+    type: Number,
+    default: 0
+  },
+  lastRetriedAt: {
+    type: Date
+  },
+  nextRetryAt: {
+    type: Date
   },
   authorizationUrl: {
     type: String

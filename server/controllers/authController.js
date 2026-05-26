@@ -8,6 +8,37 @@ const jwt=require('jsonwebtoken');
 const crypto=require('crypto');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
 const { sendEmailVerification } = require('../utils/mailer');
+const { syncProfileInsights, parseResumeText, calculateProfileCompleteness } = require('../utils/profileInsights');
+const { getBillingOwnerId, bumpUsageValue } = require('../middleware/subscriptionMiddleware');
+
+const buildUserResponse=(currentUser)=>({
+    id:currentUser._id,
+    name:currentUser.name,
+    email:currentUser.email,
+    role:currentUser.role,
+    companyName:currentUser.companyName,
+    companyWebsite:currentUser.companyWebsite,
+    companyLogo:currentUser.companyLogo,
+    profileImage:currentUser.profileImage,
+    industry:currentUser.industry,
+    companyDescription:currentUser.companyDescription,
+    bio:currentUser.bio,
+    skills:currentUser.skills,
+    education:currentUser.education,
+    experience:currentUser.experience,
+    resumeUrl:currentUser.resumeUrl,
+    resumeText:currentUser.resumeText,
+    expectedRate:currentUser.expectedRate,
+    availability:currentUser.availability,
+    employerRole:currentUser.employerRole,
+    companyId:currentUser.companyId,
+    parsedResume:currentUser.parsedResume || {},
+    profileCompletenessScore:currentUser.profileCompletenessScore || 0,
+    profileCompletenessBreakdown:currentUser.profileCompletenessBreakdown || {},
+    boostedUntil:currentUser.boostedUntil || null,
+    profileBoostAnalytics:currentUser.profileBoostAnalytics || {},
+    emailVerified:currentUser.emailVerified
+});
 
 const ensureUserSetupObjects=(currentUser)=>{
     currentUser.onboarding=currentUser.onboarding || {
@@ -196,12 +227,15 @@ const resendVerificationEmail=async (req,res)=>{
 
 const getCurrentUser=async (req,res)=>{
     const subscription=await Subscription.findOne({
-        user:req.user._id,
+        user:getBillingOwnerId(req.user),
         status:'active',
         $or:[{expiresAt:{$exists:false}},{expiresAt:null},{expiresAt:{$gt:new Date()}}]
     }).populate('plan');
 
-    res.json({user:req.user,subscription});
+    syncProfileInsights(req.user,'profile');
+    await req.user.save();
+
+    res.json({user:buildUserResponse(req.user),subscription});
 };
 
 const updateProfile=async (req,res)=>{
@@ -218,30 +252,10 @@ const updateProfile=async (req,res)=>{
         }
     });
 
+    syncProfileInsights(req.user,'profile');
     await req.user.save();
 
-    res.json({
-        user:{
-            id:req.user._id,
-            name:req.user.name,
-            email:req.user.email,
-            role:req.user.role,
-            companyName:req.user.companyName,
-            companyWebsite:req.user.companyWebsite,
-            companyLogo:req.user.companyLogo,
-            profileImage:req.user.profileImage,
-            industry:req.user.industry,
-            companyDescription:req.user.companyDescription,
-            bio:req.user.bio,
-            skills:req.user.skills,
-            education:req.user.education,
-            experience:req.user.experience,
-            resumeUrl:req.user.resumeUrl,
-            resumeText:req.user.resumeText,
-            expectedRate:req.user.expectedRate,
-            availability:req.user.availability
-        }
-    });
+    res.json({ user:buildUserResponse(req.user) });
 };
 
 const uploadResume=async (req,res)=>{
@@ -256,11 +270,17 @@ const uploadResume=async (req,res)=>{
         });
 
         req.user.resumeUrl=result.secure_url;
+        if(req.body.resumeText!==undefined){
+            req.user.resumeText=req.body.resumeText;
+        }
+        syncProfileInsights(req.user,'resume_upload');
         await req.user.save();
 
         res.status(201).json({
             message:'Resume uploaded',
             resumeUrl:result.secure_url,
+            parsedResume:req.user.parsedResume || {},
+            profileCompletenessScore:req.user.profileCompletenessScore || 0,
             publicId:result.public_id,
             resourceType:result.resource_type
         });
@@ -325,10 +345,11 @@ const uploadGenericFile=async (req,res)=>{
 };
 
 const getOnboarding=async (req,res)=>{
+    const profileCompleteness=calculateProfileCompleteness(req.user);
     res.json({
         onboarding:req.user.onboarding || {},
         personalization:req.user.personalization || {},
-        profileCompleteness:calculateProfileCompleteness(req.user)
+        profileCompleteness
     });
 };
 
@@ -374,19 +395,6 @@ const updatePersonalization=async (req,res)=>{
     res.json({personalization:req.user.personalization});
 };
 
-const calculateProfileCompleteness=(profile)=>{
-    const roleFields=profile.role==='employer'
-        ? ['name','email','companyName','companyWebsite','industry','companyDescription']
-        : ['name','email','bio','skills','education','experience','resumeUrl'];
-
-    const completed=roleFields.filter(field=>{
-        const value=profile[field];
-        return Array.isArray(value) ? value.length > 0 : Boolean(value);
-    }).length;
-
-    return Math.round((completed / roleFields.length) * 100);
-};
-
 const getSavedJobs=async (req,res)=>{
     const currentUser=await user.findById(req.user._id).populate({
         path:'savedJobs',
@@ -402,6 +410,16 @@ const toggleSavedJob=async (req,res)=>{
 
     const savedJobs=req.user.savedJobs.map(id=>id.toString());
     const alreadySaved=savedJobs.includes(req.params.jobId);
+
+    const subscription=await Subscription.findOne({
+        user:req.user._id,
+        status:'active',
+        $or:[{expiresAt:{$exists:false}},{expiresAt:null},{expiresAt:{$gt:new Date()}}]
+    }).populate('plan');
+    const savedJobsLimit=subscription?.plan?.limits?.savedJobs;
+    if(!alreadySaved && Number(savedJobsLimit) !== -1 && Number(savedJobsLimit || 0) > 0 && savedJobs.length >= Number(savedJobsLimit)){
+        return res.status(403).json({message:`Your plan allows ${savedJobsLimit} saved jobs.`});
+    }
 
     req.user.savedJobs=alreadySaved
         ? req.user.savedJobs.filter(id=>id.toString()!==req.params.jobId)
@@ -544,7 +562,7 @@ const addTeamMember = async (req, res) => {
       password: hashedPassword,
       role: 'employer',
       employerRole,
-      companyId: req.user._id,
+      companyId: getBillingOwnerId(req.user),
       companyName: req.user.companyName,
       emailVerified: true // auto-verify since they are added by company owner
     });
@@ -565,9 +583,13 @@ const addTeamMember = async (req, res) => {
 
 const getTeamMembers = async (req, res) => {
   try {
-    const ownerId = req.user.companyId || req.user._id;
-    const members = await user.find({ companyId: ownerId }).select('-password');
-    res.json(members);
+    const ownerId = getBillingOwnerId(req.user);
+    const [owner, members] = await Promise.all([
+      user.findById(ownerId).select('-password'),
+      user.find({ companyId: ownerId }).select('-password').sort({ createdAt: 1 })
+    ]);
+
+    res.json(owner ? [owner, ...members] : members);
   } catch (error) {
     console.error('Error listing team members:', error);
     res.status(500).json({ message: 'Server Error', error: error.message });
@@ -587,7 +609,7 @@ const removeTeamMember = async (req, res) => {
       return res.status(404).json({ message: 'Team member not found' });
     }
 
-    if (member.companyId?.toString() !== req.user._id.toString()) {
+    if (member.companyId?.toString() !== getBillingOwnerId(req.user).toString()) {
       return res.status(403).json({ message: 'This user is not a member of your company' });
     }
 
@@ -597,6 +619,86 @@ const removeTeamMember = async (req, res) => {
     console.error('Error removing team member:', error);
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
+};
+
+const updateTeamMemberRole = async (req, res) => {
+  try {
+    const isOwner = req.user.role === 'employer' && (!req.user.companyId || req.user.employerRole === 'owner');
+    if (!isOwner) {
+      return res.status(403).json({ message: 'Only company owners can manage the team' });
+    }
+
+    const { employerRole } = req.body;
+    if (!['recruiter', 'hiring_manager'].includes(employerRole)) {
+      return res.status(400).json({ message: 'Invalid team role. Must be recruiter or hiring_manager' });
+    }
+
+    const member = await user.findById(req.params.id);
+    if (!member) return res.status(404).json({ message: 'Team member not found' });
+    if (member.companyId?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'This user is not a member of your company' });
+    }
+
+    member.employerRole = employerRole;
+    await member.save();
+
+    res.json({
+      message: 'Team member role updated',
+      member: {
+        id: member._id,
+        name: member.name,
+        email: member.email,
+        employerRole: member.employerRole
+      }
+    });
+  } catch (error) {
+    console.error('Error updating team member role:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+const parseResumeAndScoreProfile = async (req, res) => {
+    const sourceText = req.body.resumeText ?? req.user.resumeText ?? '';
+    if (!sourceText) {
+        return res.status(400).json({ message: 'resumeText is required to parse a resume' });
+    }
+
+    req.user.resumeText = sourceText;
+    req.user.parsedResume = {
+        ...parseResumeText(sourceText),
+        source:'manual_parse'
+    };
+    const completeness = syncProfileInsights(req.user,'manual_parse');
+    await req.user.save();
+
+    res.json({
+        parsedResume:req.user.parsedResume,
+        profileCompleteness:completeness,
+        user:buildUserResponse(req.user)
+    });
+};
+
+const boostProfile = async (req, res) => {
+    const durationDays = Math.max(Number(req.body.durationDays || 14), 1);
+    const boostedUntil = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+
+    req.user.boostedUntil = boostedUntil;
+    req.user.profileBoostAnalytics = {
+        impressions:0,
+        clicks:0,
+        lastBoostedAt:new Date()
+    };
+    await req.user.save();
+
+    if (req.subscriptionContext?.subscription) {
+        await bumpUsageValue(req.subscriptionContext.subscription, 'profileBoosts');
+    }
+
+    res.json({
+        message:'Profile boosted successfully',
+        boostedUntil,
+        analytics:req.user.profileBoostAnalytics
+    });
 };
 
 module.exports={
@@ -627,5 +729,8 @@ module.exports={
     updateAdminReport,
     addTeamMember,
     getTeamMembers,
-    removeTeamMember
+    removeTeamMember,
+    updateTeamMemberRole,
+    parseResumeAndScoreProfile,
+    boostProfile
 };

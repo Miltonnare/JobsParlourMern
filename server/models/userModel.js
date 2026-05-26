@@ -150,6 +150,44 @@ const UserSchema=new mongoose.Schema(
             type:mongoose.Schema.Types.ObjectId,
             ref:'UserModel'
         },
+        parsedResume:{
+            skills:[String],
+            emails:[String],
+            phones:[String],
+            links:[String],
+            summary:{
+                type:String,
+                default:''
+            },
+            lastParsedAt:{
+                type:Date
+            },
+            source:{
+                type:String,
+                default:''
+            }
+        },
+        profileCompletenessScore:{
+            type:Number,
+            default:0
+        },
+        profileCompletenessBreakdown:{
+            type:Object,
+            default:{}
+        },
+        profileBoostAnalytics:{
+            impressions:{
+                type:Number,
+                default:0
+            },
+            clicks:{
+                type:Number,
+                default:0
+            },
+            lastBoostedAt:{
+                type:Date
+            }
+        },
         boostedUntil:{
             type:Date
         }

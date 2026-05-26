@@ -25,6 +25,17 @@ const subscriptionSchema = new mongoose.Schema({
     enum: ['active', 'trialing', 'past_due', 'cancelled', 'expired'],
     default: 'active'
   },
+  cancelAtPeriodEnd: {
+    type: Boolean,
+    default: false
+  },
+  cancelledAt: {
+    type: Date
+  },
+  pendingPlan: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'pricingPlanModel'
+  },
   startedAt: {
     type: Date,
     default: Date.now

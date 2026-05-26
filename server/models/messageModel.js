@@ -11,9 +11,20 @@ const messageSchema = new mongoose.Schema({
     ref: 'UserModel',
     required: true
   },
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'UserModel'
+  },
   jobId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'jobModel'
+  },
+  applicationId: {
+    type: mongoose.Schema.Types.ObjectId
+  },
+  conversationKey: {
+    type: String,
+    index: true
   },
   content: {
     type: String,
@@ -22,6 +33,9 @@ const messageSchema = new mongoose.Schema({
   read: {
     type: Boolean,
     default: false
+  },
+  readAt: {
+    type: Date
   }
 }, { timestamps: true });
 

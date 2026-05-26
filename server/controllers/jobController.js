@@ -3,6 +3,7 @@ const Job = require('../models/jobModel');
 const User = require('../models/userModel');
 const Notification = require('../models/notificationModel');
 const Report = require('../models/reportModel');
+const { bumpUsageValue } = require('../middleware/subscriptionMiddleware');
 
 const STOP_WORDS = new Set([
   'and','or','the','a','an','to','of','in','for','with','on','at','by','from','is','are','be','as','we','you',
@@ -48,6 +49,18 @@ const calculateAtsScore = (job, candidate, note = '', resumeText = '') => {
     summary: `${score}% match based on ${matchedKeywords.length} matched keyword${matchedKeywords.length === 1 ? '' : 's'} and profile completeness.`
   };
 };
+
+const getEmployerRootId = (currentUser) => currentUser.companyId || currentUser._id;
+
+const ensureEmployerOwnsJob = (job, currentUser) => {
+  if (job.createdBy.toString() !== getEmployerRootId(currentUser).toString()) {
+    const error = new Error('Not authorized to manage this job');
+    error.statusCode = 403;
+    throw error;
+  }
+};
+
+const isFeaturedActive = (job) => Boolean(job.isFeatured && job.featuredUntil && new Date(job.featuredUntil) > new Date());
 
 const createJob=async (req,res)=>{
     const {title,description,location,jobType,Type,salary,workplace,status}=req.body;
@@ -142,14 +155,23 @@ const getAllJobs=async (req,res)=>{
     const [jobs,total]=await Promise.all([
       Job.find(query)
         .populate('createdBy','name companyName companyLogo industry companyWebsite companyDescription')
-        .sort(sortBy)
+        .sort({ isFeatured: -1, featuredUntil: -1, ...sortBy })
         .skip((safePage-1)*safeLimit)
         .limit(safeLimit),
       Job.countDocuments(query)
     ]);
 
+    const mappedJobs = jobs.map(job => {
+      const raw = job.toObject();
+      raw.isFeaturedActive = isFeaturedActive(raw);
+      if (raw.isFeaturedActive) {
+        raw.featuredAnalytics = raw.featuredAnalytics || {};
+      }
+      return raw;
+    });
+
     res.json({
-      jobs,
+      jobs:mappedJobs,
       total,
       page:safePage,
       pages:Math.max(Math.ceil(total/safeLimit),1)
@@ -160,6 +182,17 @@ const getJobById=async (req,res)=>{
     const job=await Job.findById(req.params.id).populate('createdBy','name email companyName companyLogo companyWebsite industry companyDescription');
 
     if(!job) return res.status(404).json({message:'Job Not Found'});
+
+    job.views = Number(job.views || 0) + 1;
+    if (isFeaturedActive(job)) {
+      job.featuredAnalytics = {
+        ...(job.featuredAnalytics || {}),
+        impressions: Number(job.featuredAnalytics?.impressions || 0) + 1,
+        clicks: Number(job.featuredAnalytics?.clicks || 0),
+        lastFeaturedAt: job.featuredAnalytics?.lastFeaturedAt || job.featuredActivatedAt || new Date()
+      };
+    }
+    await job.save();
 
     res.json(job);
 };
@@ -251,7 +284,13 @@ const applyToJob = async (req, res) => {
     resumeText: profileResumeText,
     bid,
     ats,
-    candidateSnapshot
+    candidateSnapshot,
+    stageHistory: [{
+      stage: 'applied',
+      updatedBy: userId,
+      updatedByName: req.user.name,
+      updatedAt: new Date()
+    }]
   });
   job.applicationCount = (job.applicationCount || 0) + 1;
   await job.save();
@@ -385,6 +424,9 @@ const exportApplicantsCsv=async (req,res)=>{
 
   res.setHeader('Content-Type','text/csv');
   res.setHeader('Content-Disposition','attachment; filename="applicants.csv"');
+  if (req.subscriptionContext?.subscription) {
+    await bumpUsageValue(req.subscriptionContext.subscription, 'applicantExports');
+  }
   res.send(csv);
 };
 
@@ -456,9 +498,7 @@ const scheduleInterview = async (req, res) => {
     if (!job) return res.status(404).json({ message: 'Job not found' });
 
     const employerId = req.user.companyId || req.user._id;
-    if (job.createdBy.toString() !== employerId.toString()) {
-      return res.status(403).json({ message: 'Not authorized to manage this job' });
-    }
+    ensureEmployerOwnsJob(job, req.user);
 
     const application = job.applications.id(applicationId);
     if (!application) return res.status(404).json({ message: 'Application not found' });
@@ -468,7 +508,18 @@ const scheduleInterview = async (req, res) => {
       duration: duration ? Number(duration) : 30,
       type: type || 'technical',
       interviewer: interviewer || req.user.name,
+      location: req.body.location || '',
+      meetingLink: req.body.meetingLink || '',
       status: 'scheduled'
+    });
+
+    application.stage = 'interviewing';
+    application.status = 'shortlisted';
+    application.stageHistory.push({
+      stage: 'interviewing',
+      updatedBy: req.user._id,
+      updatedByName: req.user.name,
+      updatedAt: new Date()
     });
 
     await job.save();
@@ -497,9 +548,7 @@ const addApplicationNote = async (req, res) => {
     if (!job) return res.status(404).json({ message: 'Job not found' });
 
     const employerId = req.user.companyId || req.user._id;
-    if (job.createdBy.toString() !== employerId.toString()) {
-      return res.status(403).json({ message: 'Not authorized to manage this job' });
-    }
+    ensureEmployerOwnsJob(job, req.user);
 
     const application = job.applications.id(applicationId);
     if (!application) return res.status(404).json({ message: 'Application not found' });
@@ -533,9 +582,7 @@ const updateApplicationStage = async (req, res) => {
     if (!job) return res.status(404).json({ message: 'Job not found' });
 
     const employerId = req.user.companyId || req.user._id;
-    if (job.createdBy.toString() !== employerId.toString()) {
-      return res.status(403).json({ message: 'Not authorized to manage this job' });
-    }
+    ensureEmployerOwnsJob(job, req.user);
 
     const application = job.applications.id(applicationId);
     if (!application) return res.status(404).json({ message: 'Application not found' });
@@ -572,6 +619,39 @@ const updateApplicationStage = async (req, res) => {
   } catch (error) {
     console.error('Error in updateApplicationStage:', error);
     res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+const updateInterview = async (req, res) => {
+  try {
+    const { jobId, applicationId, interviewId } = req.params;
+    const { status, feedback, scheduledAt, duration, interviewer, location, meetingLink } = req.body;
+
+    const job = await Job.findById(jobId);
+    if (!job) return res.status(404).json({ message: 'Job not found' });
+    ensureEmployerOwnsJob(job, req.user);
+
+    const application = job.applications.id(applicationId);
+    if (!application) return res.status(404).json({ message: 'Application not found' });
+
+    const interview = application.interviews.id(interviewId);
+    if (!interview) return res.status(404).json({ message: 'Interview not found' });
+
+    if (scheduledAt !== undefined) interview.scheduledAt = new Date(scheduledAt);
+    if (duration !== undefined) interview.duration = Number(duration);
+    if (interviewer !== undefined) interview.interviewer = interviewer;
+    if (location !== undefined) interview.location = location;
+    if (meetingLink !== undefined) interview.meetingLink = meetingLink;
+    if (feedback !== undefined) interview.feedback = feedback;
+    if (status !== undefined) interview.status = status;
+    if (status === 'completed') interview.completedAt = new Date();
+
+    await job.save();
+
+    res.json({ message: 'Interview updated', interview, application });
+  } catch (error) {
+    console.error('Error in updateInterview:', error);
+    res.status(error.statusCode || 500).json({ message: error.message || 'Server Error' });
   }
 };
 
@@ -644,6 +724,69 @@ const getApplicationTimeline = async (req, res) => {
   }
 };
 
+const featureJob = async (req, res) => {
+  try {
+    const durationDays = Math.max(Number(req.body.durationDays || 30), 1);
+    const job = await Job.findById(req.params.id);
+    if (!job) return res.status(404).json({ message: 'Job not found' });
+    ensureEmployerOwnsJob(job, req.user);
+
+    const now = new Date();
+    job.isFeatured = true;
+    job.featuredActivatedAt = now;
+    job.featuredUntil = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    job.featuredAnalytics = {
+      impressions: 0,
+      clicks: 0,
+      lastFeaturedAt: now
+    };
+    await job.save();
+
+    res.json({
+      message: 'Job featured successfully',
+      featuredUntil: job.featuredUntil,
+      analytics: job.featuredAnalytics
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message || 'Failed to feature job' });
+  }
+};
+
+const trackJobClick = async (req, res) => {
+  const job = await Job.findById(req.params.id);
+  if (!job) return res.status(404).json({ message: 'Job not found' });
+
+  job.clicks = Number(job.clicks || 0) + 1;
+  if (isFeaturedActive(job)) {
+    job.featuredAnalytics = {
+      ...(job.featuredAnalytics || {}),
+      impressions: Number(job.featuredAnalytics?.impressions || 0),
+      clicks: Number(job.featuredAnalytics?.clicks || 0) + 1,
+      lastFeaturedAt: job.featuredAnalytics?.lastFeaturedAt || job.featuredActivatedAt || new Date()
+    };
+  }
+  await job.save();
+
+  res.json({ clicks: job.clicks, featuredAnalytics: job.featuredAnalytics || {} });
+};
+
+const getJobAnalytics = async (req, res) => {
+  const job = await Job.findById(req.params.id);
+  if (!job) return res.status(404).json({ message: 'Job not found' });
+  ensureEmployerOwnsJob(job, req.user);
+
+  res.json({
+    jobId: job._id,
+    title: job.title,
+    views: job.views || 0,
+    clicks: job.clicks || 0,
+    applicationCount: job.applicationCount || 0,
+    isFeaturedActive: isFeaturedActive(job),
+    featuredUntil: job.featuredUntil || null,
+    featuredAnalytics: job.featuredAnalytics || {}
+  });
+};
+
 module.exports={
     createJob,
     getAllJobs,
@@ -658,7 +801,11 @@ module.exports={
     toggleJobStatus,
     reportJob,
     scheduleInterview,
+    updateInterview,
     addApplicationNote,
     updateApplicationStage,
-    getApplicationTimeline
+    getApplicationTimeline,
+    featureJob,
+    trackJobClick,
+    getJobAnalytics
 };

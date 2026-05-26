@@ -7,7 +7,7 @@ const { sendJobAlertDigestEmail } = require('./mailer');
 const runJobAlerts = async () => {
   console.log('[Scheduler] Running Job Alerts check...');
   try {
-    const activeAlerts = await JobAlert.find({ isActive: true }).populate('userId');
+    const activeAlerts = await JobAlert.find({ isActive: true, alertEnabled: true }).populate('userId');
 
     for (const alert of activeAlerts) {
       if (!alert.userId) {
@@ -92,6 +92,7 @@ const runJobAlerts = async () => {
 
           // Update alert state
           alert.lastSent = new Date();
+          alert.lastMatchedCount = matchingJobs.length;
           if (!alert.sentJobs) alert.sentJobs = [];
           alert.sentJobs.push(...matchingJobs.map(job => job._id));
           await alert.save();

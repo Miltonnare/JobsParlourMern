@@ -6,6 +6,10 @@ const jobAlertSchema = new mongoose.Schema({
     ref: 'UserModel',
     required: true
   },
+  name: {
+    type: String,
+    default: ''
+  },
   keywords: {
     type: [String],
     default: []
@@ -27,9 +31,17 @@ const jobAlertSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  alertEnabled: {
+    type: Boolean,
+    default: true
+  },
   lastSent: {
     type: Date,
     default: Date.now
+  },
+  lastMatchedCount: {
+    type: Number,
+    default: 0
   },
   sentJobs: [{
     type: mongoose.Schema.Types.ObjectId,
