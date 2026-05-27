@@ -10,6 +10,14 @@ const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
 const { sendEmailVerification } = require('../utils/mailer');
 const { syncProfileInsights, parseResumeText, calculateProfileCompleteness } = require('../utils/profileInsights');
 const { getBillingOwnerId, bumpUsageValue } = require('../middleware/subscriptionMiddleware');
+const { extractResumeTextFromFile } = require('../utils/resumeParsing');
+const {
+    buildResumeRecordFromUpload,
+    createEmptyParsedResume,
+    createIdleResumeParsing,
+    syncPrimaryResumeFields,
+    ensureSinglePrimaryResume
+} = require('../utils/resumeLibrary');
 
 const buildUserResponse=(currentUser)=>({
     id:currentUser._id,
@@ -28,11 +36,13 @@ const buildUserResponse=(currentUser)=>({
     experience:currentUser.experience,
     resumeUrl:currentUser.resumeUrl,
     resumeText:currentUser.resumeText,
+    resumes:currentUser.resumes || [],
     expectedRate:currentUser.expectedRate,
     availability:currentUser.availability,
     employerRole:currentUser.employerRole,
     companyId:currentUser.companyId,
     parsedResume:currentUser.parsedResume || {},
+    resumeParsing:currentUser.resumeParsing || {},
     profileCompletenessScore:currentUser.profileCompletenessScore || 0,
     profileCompletenessBreakdown:currentUser.profileCompletenessBreakdown || {},
     boostedUntil:currentUser.boostedUntil || null,
@@ -48,6 +58,16 @@ const ensureUserSetupObjects=(currentUser)=>{
         answers:{}
     };
     currentUser.personalization=currentUser.personalization || {};
+};
+
+const syncPrimaryResumeRecord=(currentUser)=>{
+    const primaryResume=currentUser.resumes?.find((resume)=>resume.isPrimary);
+    if(!primaryResume) return;
+
+    primaryResume.resumeUrl=currentUser.resumeUrl || '';
+    primaryResume.resumeText=currentUser.resumeText || '';
+    primaryResume.parsedResume=currentUser.parsedResume || createEmptyParsedResume('profile_sync');
+    primaryResume.resumeParsing=currentUser.resumeParsing || createIdleResumeParsing();
 };
 
 const createEmailVerificationToken=()=>{
@@ -233,6 +253,7 @@ const getCurrentUser=async (req,res)=>{
     }).populate('plan');
 
     syncProfileInsights(req.user,'profile');
+    syncPrimaryResumeRecord(req.user);
     await req.user.save();
 
     res.json({user:buildUserResponse(req.user),subscription});
@@ -264,29 +285,105 @@ const uploadResume=async (req,res)=>{
     }
 
     try {
-        const result=await uploadBufferToCloudinary(req.file,{
-            folder:`jobs-parlour/${req.user._id}/resumes`,
-            resourceType:'raw'
+        const resumeRecord=await buildResumeRecordFromUpload({
+            file:req.file,
+            ownerId:req.user._id,
+            folderSuffix:'resumes',
+            manualResumeText:req.body.resumeText,
+            label:req.body.label
         });
 
-        req.user.resumeUrl=result.secure_url;
-        if(req.body.resumeText!==undefined){
-            req.user.resumeText=req.body.resumeText;
+        req.user.resumes=req.user.resumes || [];
+        req.user.resumes.push(resumeRecord);
+
+        const shouldSetPrimary = req.body.setAsPrimary === undefined
+            ? true
+            : String(req.body.setAsPrimary).toLowerCase() !== 'false';
+        const primaryResume = shouldSetPrimary
+            ? ensureSinglePrimaryResume(req.user, resumeRecord._id)
+            : (req.user.resumes.find((resume)=>resume.isPrimary) || ensureSinglePrimaryResume(req.user, resumeRecord._id));
+
+        if (primaryResume?.isPrimary) {
+            syncPrimaryResumeFields(req.user, primaryResume);
         }
+
         syncProfileInsights(req.user,'resume_upload');
         await req.user.save();
 
         res.status(201).json({
             message:'Resume uploaded',
-            resumeUrl:result.secure_url,
+            resumeId:resumeRecord._id,
+            resumeUrl:req.user.resumeUrl,
+            resumeText:req.user.resumeText,
             parsedResume:req.user.parsedResume || {},
+            resumeParsing:req.user.resumeParsing || {},
+            resumes:req.user.resumes || [],
             profileCompletenessScore:req.user.profileCompletenessScore || 0,
-            publicId:result.public_id,
-            resourceType:result.resource_type
+            publicId:resumeRecord.publicId,
+            resourceType:resumeRecord.resourceType
         });
     } catch (error) {
         res.status(error.statusCode || 500).json({message:error.message || 'Failed to upload resume'});
     }
+};
+
+const getMyResumes=async (req,res)=>{
+    const resumes=[...(req.user.resumes || [])].sort((a,b)=>{
+        if (a.isPrimary && !b.isPrimary) return -1;
+        if (!a.isPrimary && b.isPrimary) return 1;
+        return new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0);
+    });
+
+    res.json({
+        resumes,
+        primaryResumeId:resumes.find((resume)=>resume.isPrimary)?._id || null
+    });
+};
+
+const setPrimaryResume=async (req,res)=>{
+    const resume=req.user.resumes?.id(req.params.resumeId);
+    if(!resume){
+        return res.status(404).json({message:'Resume not found'});
+    }
+
+    ensureSinglePrimaryResume(req.user, resume._id);
+    syncProfileInsights(req.user,'resume_primary_switch');
+    await req.user.save();
+
+    res.json({
+        message:'Primary resume updated',
+        resumeId:resume._id,
+        resumes:req.user.resumes || [],
+        user:buildUserResponse(req.user)
+    });
+};
+
+const deleteResume=async (req,res)=>{
+    const resume=req.user.resumes?.id(req.params.resumeId);
+    if(!resume){
+        return res.status(404).json({message:'Resume not found'});
+    }
+
+    const deletedWasPrimary=Boolean(resume.isPrimary);
+    resume.deleteOne();
+
+    if((req.user.resumes || []).length===0){
+        req.user.resumeUrl='';
+        req.user.resumeText='';
+        req.user.parsedResume=createEmptyParsedResume('resume_deleted');
+        req.user.resumeParsing=createIdleResumeParsing();
+    } else if(deletedWasPrimary){
+        ensureSinglePrimaryResume(req.user, req.user.resumes[0]._id);
+    }
+
+    syncProfileInsights(req.user,'resume_deleted');
+    await req.user.save();
+
+    res.json({
+        message:'Resume deleted',
+        resumes:req.user.resumes || [],
+        user:buildUserResponse(req.user)
+    });
 };
 
 const uploadProfileImage=async (req,res)=>{
@@ -635,7 +732,7 @@ const updateTeamMemberRole = async (req, res) => {
 
     const member = await user.findById(req.params.id);
     if (!member) return res.status(404).json({ message: 'Team member not found' });
-    if (member.companyId?.toString() !== req.user._id.toString()) {
+    if (member.companyId?.toString() !== getBillingOwnerId(req.user).toString()) {
       return res.status(403).json({ message: 'This user is not a member of your company' });
     }
 
@@ -668,11 +765,21 @@ const parseResumeAndScoreProfile = async (req, res) => {
         ...parseResumeText(sourceText),
         source:'manual_parse'
     };
+    req.user.resumeParsing = {
+        ...(req.user.resumeParsing || {}),
+        status:'parsed',
+        failureReason:'',
+        warning:'',
+        extractedCharacters:sourceText.length,
+        lastAttemptedAt:new Date()
+    };
     const completeness = syncProfileInsights(req.user,'manual_parse');
+    syncPrimaryResumeRecord(req.user);
     await req.user.save();
 
     res.json({
         parsedResume:req.user.parsedResume,
+        resumeParsing:req.user.resumeParsing,
         profileCompleteness:completeness,
         user:buildUserResponse(req.user)
     });
@@ -731,6 +838,9 @@ module.exports={
     getTeamMembers,
     removeTeamMember,
     updateTeamMemberRole,
+    getMyResumes,
+    setPrimaryResume,
+    deleteResume,
     parseResumeAndScoreProfile,
     boostProfile
 };

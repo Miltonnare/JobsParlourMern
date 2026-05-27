@@ -4,6 +4,7 @@ const User = require('../models/userModel');
 const Notification = require('../models/notificationModel');
 const Report = require('../models/reportModel');
 const { bumpUsageValue } = require('../middleware/subscriptionMiddleware');
+const { buildResumeRecordFromUpload } = require('../utils/resumeLibrary');
 
 const STOP_WORDS = new Set([
   'and','or','the','a','an','to','of','in','for','with','on','at','by','from','is','are','be','as','we','you',
@@ -238,6 +239,7 @@ const applyToJob = async (req, res) => {
 
   const {
     note='',
+    profileResumeId,
     resumeUrl='',
     resumeText='',
     bidAmount,
@@ -250,12 +252,39 @@ const applyToJob = async (req, res) => {
   if (!job) return res.status(404).json({ message: 'Job not found' });
   if (job.status === 'closed') return res.status(400).json({ message: 'This job is closed' });
 
- 
+
   const alreadyApplied = job.applications.find(app => app.user.toString() === userId.toString());
   if (alreadyApplied) return res.status(400).json({ message: 'You already applied for this job' });
 
-  const profileResumeUrl=resumeUrl || req.user.resumeUrl || '';
-  const profileResumeText=resumeText || req.user.resumeText || '';
+  let selectedResume = null;
+  if (profileResumeId) {
+    selectedResume = req.user.resumes?.id(profileResumeId);
+    if (!selectedResume) {
+      return res.status(400).json({ message: 'Selected profile resume was not found' });
+    }
+  }
+
+  let uploadedApplicationResume = null;
+  if (req.file) {
+    uploadedApplicationResume = await buildResumeRecordFromUpload({
+      file:req.file,
+      ownerId:req.user._id,
+      folderSuffix:`applications/${jobId}`,
+      manualResumeText:resumeText,
+      label:req.body.label || `${job.title} application`
+    });
+  }
+
+  const resolvedResumeUrl = uploadedApplicationResume?.resumeUrl
+    || selectedResume?.resumeUrl
+    || resumeUrl
+    || req.user.resumeUrl
+    || '';
+  const resolvedResumeText = uploadedApplicationResume?.resumeText
+    || selectedResume?.resumeText
+    || resumeText
+    || req.user.resumeText
+    || '';
   const bidAmountNumber=bidAmount === '' || bidAmount === undefined ? req.user.expectedRate : Number(bidAmount);
   const bid = {
     amount: Number.isFinite(bidAmountNumber) ? bidAmountNumber : undefined,
@@ -271,17 +300,17 @@ const applyToJob = async (req, res) => {
     skills: req.user.skills || [],
     education: req.user.education || '',
     experience: req.user.experience || '',
-    resumeUrl: profileResumeUrl,
+    resumeUrl: resolvedResumeUrl,
     expectedRate: req.user.expectedRate,
     availability: req.user.availability || ''
   };
-  const ats = calculateAtsScore(job, candidateSnapshot, note, profileResumeText);
+  const ats = calculateAtsScore(job, candidateSnapshot, note, resolvedResumeText);
 
   job.applications.push({
     user: userId,
     note,
-    resumeUrl: profileResumeUrl,
-    resumeText: profileResumeText,
+    resumeUrl: resolvedResumeUrl,
+    resumeText: resolvedResumeText,
     bid,
     ats,
     candidateSnapshot,

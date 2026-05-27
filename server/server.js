@@ -13,11 +13,15 @@ const jobAlertRoutes=require('./routes/jobAlertRoute');
 const savedSearchRoutes=require('./routes/savedSearchRoute');
 const messageRoutes=require('./routes/messageRoute');
 const { initScheduler }=require('./utils/jobAlertScheduler');
+const { assignRequestContext, requestLogger } = require('./middleware/requestContextMiddleware');
+const { notFoundHandler, errorHandler } = require('./middleware/errorMiddleware');
 
 dotenv.config();
 
 const app=express();
 
+app.use(assignRequestContext);
+app.use(requestLogger);
 app.use(cors());
 app.use(express.json({
     verify:(req,res,buf)=>{
@@ -49,6 +53,9 @@ app.use(express.static(clientDistPath));
 app.get(/^\/(?!api).*/, (req, res) => {
     res.sendFile(path.join(clientDistPath,'index.html'));
 });
+
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 const PORT=process.env.PORT||5000;
 

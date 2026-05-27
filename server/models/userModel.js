@@ -63,6 +63,85 @@ const UserSchema=new mongoose.Schema(
         resumeText:{
             type:String
         },
+        resumes:[
+            {
+                label:{
+                    type:String,
+                    default:'Resume'
+                },
+                resumeUrl:{
+                    type:String,
+                    default:''
+                },
+                resumeText:{
+                    type:String,
+                    default:''
+                },
+                parsedResume:{
+                    skills:[String],
+                    emails:[String],
+                    phones:[String],
+                    links:[String],
+                    summary:{
+                        type:String,
+                        default:''
+                    },
+                    lastParsedAt:{
+                        type:Date
+                    },
+                    source:{
+                        type:String,
+                        default:''
+                    }
+                },
+                resumeParsing:{
+                    status:{
+                        type:String,
+                        enum:['idle','processing','parsed','needs_review','failed'],
+                        default:'idle'
+                    },
+                    failureReason:{
+                        type:String,
+                        default:''
+                    },
+                    warning:{
+                        type:String,
+                        default:''
+                    },
+                    sourceFileName:{
+                        type:String,
+                        default:''
+                    },
+                    mimeType:{
+                        type:String,
+                        default:''
+                    },
+                    extractedCharacters:{
+                        type:Number,
+                        default:0
+                    },
+                    lastAttemptedAt:{
+                        type:Date
+                    }
+                },
+                isPrimary:{
+                    type:Boolean,
+                    default:false
+                },
+                uploadedAt:{
+                    type:Date,
+                    default:Date.now
+                },
+                publicId:{
+                    type:String,
+                    default:''
+                },
+                resourceType:{
+                    type:String,
+                    default:''
+                }
+            }
+        ],
         expectedRate:{
             type:Number
         },
@@ -165,6 +244,36 @@ const UserSchema=new mongoose.Schema(
             source:{
                 type:String,
                 default:''
+            }
+        },
+        resumeParsing:{
+            status:{
+                type:String,
+                enum:['idle','processing','parsed','needs_review','failed'],
+                default:'idle'
+            },
+            failureReason:{
+                type:String,
+                default:''
+            },
+            warning:{
+                type:String,
+                default:''
+            },
+            sourceFileName:{
+                type:String,
+                default:''
+            },
+            mimeType:{
+                type:String,
+                default:''
+            },
+            extractedCharacters:{
+                type:Number,
+                default:0
+            },
+            lastAttemptedAt:{
+                type:Date
             }
         },
         profileCompletenessScore:{
