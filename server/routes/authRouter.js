@@ -29,6 +29,11 @@ const {
     deleteAdminJob,
     getAdminReports,
     updateAdminReport,
+    getAdminModerationQueue,
+    updateEmployerVerification,
+    reviewFlaggedJob,
+    getEmployerAuditLogs,
+    getAdminAuditLogs,
     addTeamMember,
     getTeamMembers,
     removeTeamMember,
@@ -154,8 +159,10 @@ router.post('/saved-jobs/:jobId',protect,restrictTo('jobseeker'),validate({
 }),toggleSavedJob);
 router.get('/notifications',protect,getNotifications);
 router.put('/notifications/read',protect,markNotificationsRead);
+router.get('/audit-logs',protect,restrictTo('employer'),requireEmployerCapability('audit.view'),getEmployerAuditLogs);
 router.get('/admin/stats',protect,restrictTo('admin'),getAdminStats);
 router.get('/admin/users',protect,restrictTo('admin'),getAdminUsers);
+router.get('/admin/audit-logs',protect,restrictTo('admin'),getAdminAuditLogs);
 router.put('/admin/users/:id',protect,restrictTo('admin'),validate({
     params:[idField('id',{required:true,label:'user id'})],
     body:[
@@ -174,8 +181,27 @@ router.delete('/admin/jobs/:id',protect,restrictTo('admin'),validate({
 router.get('/admin/reports',protect,restrictTo('admin'),getAdminReports);
 router.patch('/admin/reports/:id',protect,restrictTo('admin'),validate({
     params:[idField('id',{required:true,label:'report id'})],
-    body:[stringField('status',{required:true,enum:['open','reviewing','resolved','dismissed']})]
+    body:[
+        stringField('status',{required:true,enum:['open','reviewing','resolved','dismissed']}),
+        stringField('adminNotes',{maxLength:5000})
+    ]
 }),updateAdminReport);
+router.get('/admin/moderation',protect,restrictTo('admin'),getAdminModerationQueue);
+router.patch('/admin/employers/:id/verification',protect,restrictTo('admin'),validate({
+    params:[idField('id',{required:true,label:'employer id'})],
+    body:[
+        stringField('status',{required:true,enum:['unverified','pending','verified','rejected']}),
+        stringField('notes',{maxLength:5000})
+    ]
+}),updateEmployerVerification);
+router.patch('/admin/jobs/:id/moderation',protect,restrictTo('admin'),validate({
+    params:[idField('id',{required:true,label:'job id'})],
+    body:[
+        stringField('reviewStatus',{required:true,enum:['none','reviewing','cleared','actioned']}),
+        stringField('reviewerNotes',{maxLength:5000}),
+        stringField('status',{enum:['active','closed','draft']})
+    ]
+}),reviewFlaggedJob);
 
 router.post('/team',protect,restrictTo('employer'),requireEmployerCapability('team.manage'),validate({
     body:[
@@ -185,7 +211,7 @@ router.post('/team',protect,restrictTo('employer'),requireEmployerCapability('te
         stringField('employerRole',{required:true,enum:['recruiter','hiring_manager']})
     ]
 }),addTeamMember);
-router.get('/team',protect,restrictTo('employer'),getTeamMembers);
+router.get('/team',protect,restrictTo('employer'),requireEmployerCapability('team.view'),getTeamMembers);
 router.patch('/team/:id/role',protect,restrictTo('employer'),requireEmployerCapability('team.manage'),validate({
     params:[idField('id',{required:true,label:'team member id'})],
     body:[stringField('employerRole',{required:true,enum:['recruiter','hiring_manager']})]

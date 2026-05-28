@@ -1,5 +1,30 @@
 const nodemailer = require('nodemailer');
 
+const normalizeMailError = (error) => {
+  if (!error) {
+    return new Error('Mail delivery failed');
+  }
+
+  const rawMessage = String(error.message || '');
+  const message = rawMessage.toLowerCase();
+
+  if (
+    error.code === 'EAUTH' ||
+    message.includes('badcredentials') ||
+    message.includes('invalid login') ||
+    message.includes('username and password not accepted')
+  ) {
+    const friendlyError = new Error(
+      'Email delivery failed because the SMTP login was rejected. If you are using Gmail, set SMTP_USER to your Gmail address and SMTP_PASS to a Google App Password.'
+    );
+    friendlyError.statusCode = 502;
+    friendlyError.code = 'SMTP_AUTH_FAILED';
+    return friendlyError;
+  }
+
+  return error;
+};
+
 const getTransporter = () => {
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT || 587);
@@ -22,14 +47,17 @@ const getTransporter = () => {
 
 const sendMail = async ({ to, subject, text, html }) => {
   const transporter = getTransporter();
-
-  return transporter.sendMail({
-    from: process.env.MAIL_FROM || process.env.SMTP_USER,
-    to,
-    subject,
-    text,
-    html
-  });
+  try {
+    return await transporter.sendMail({
+      from: process.env.MAIL_FROM || process.env.SMTP_USER,
+      to,
+      subject,
+      text,
+      html
+    });
+  } catch (error) {
+    throw normalizeMailError(error);
+  }
 };
 
 const sendEmailVerification = async ({ to, name, verificationUrl }) => {
@@ -87,8 +115,17 @@ const sendJobAlertDigestEmail = async ({ to, name, jobs }) => {
   });
 };
 
+const sendInterviewUpdateEmail = async ({ to, subject, text, html }) => sendMail({
+  to,
+  subject,
+  text,
+  html
+});
+
 module.exports = {
+  normalizeMailError,
   sendEmailVerification,
   sendMail,
-  sendJobAlertDigestEmail
+  sendJobAlertDigestEmail,
+  sendInterviewUpdateEmail
 };

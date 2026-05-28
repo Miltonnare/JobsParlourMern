@@ -299,6 +299,40 @@ const UserSchema=new mongoose.Schema(
         },
         boostedUntil:{
             type:Date
+        },
+        employerVerification:{
+            status:{
+                type:String,
+                enum:['unverified','pending','verified','rejected'],
+                default:'unverified'
+            },
+            submittedAt:{
+                type:Date
+            },
+            reviewedAt:{
+                type:Date
+            },
+            reviewedBy:{
+                type:mongoose.Schema.Types.ObjectId,
+                ref:'UserModel'
+            },
+            notes:{
+                type:String,
+                default:''
+            }
+        },
+        trustFlags:{
+            reportCount:{
+                type:Number,
+                default:0
+            },
+            suspiciousJobCount:{
+                type:Number,
+                default:0
+            },
+            lastFlaggedAt:{
+                type:Date
+            }
         }
 
     },{timestamps:true}

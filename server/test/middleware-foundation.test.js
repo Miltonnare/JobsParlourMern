@@ -1,6 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { hasEmployerCapability } = require('../middleware/capabilityMiddleware');
+const {
+  hasEmployerCapability,
+  assertEmployerCanManageCompanyFields
+} = require('../middleware/capabilityMiddleware');
 const { validate, stringField, numberField, booleanField, idField } = require('../middleware/validationMiddleware');
 
 test('employer capabilities distinguish owner, recruiter, and hiring manager access', () => {
@@ -9,10 +12,31 @@ test('employer capabilities distinguish owner, recruiter, and hiring manager acc
   const hiringManager = { role: 'employer', companyId: 'owner-id', employerRole: 'hiring_manager' };
 
   assert.equal(hasEmployerCapability(owner, 'billing.manage'), true);
+  assert.equal(hasEmployerCapability(owner, 'company.manage'), true);
+  assert.equal(hasEmployerCapability(owner, 'team.view'), true);
   assert.equal(hasEmployerCapability(recruiter, 'billing.manage'), false);
+  assert.equal(hasEmployerCapability(recruiter, 'company.manage'), false);
+  assert.equal(hasEmployerCapability(recruiter, 'team.view'), false);
   assert.equal(hasEmployerCapability(recruiter, 'jobs.create'), true);
   assert.equal(hasEmployerCapability(hiringManager, 'jobs.create'), false);
   assert.equal(hasEmployerCapability(hiringManager, 'applications.advance'), true);
+});
+
+test('company-managed employer fields are owner-only', () => {
+  const owner = { role: 'employer', _id: 'owner-id' };
+  const recruiter = { role: 'employer', companyId: 'owner-id', employerRole: 'recruiter' };
+
+  const ownerFields = assertEmployerCanManageCompanyFields(owner, {
+    companyName: 'Acme',
+    companyWebsite: 'https://acme.test'
+  });
+  assert.deepEqual(ownerFields, ['companyName', 'companyWebsite']);
+
+  assert.throws(() => {
+    assertEmployerCanManageCompanyFields(recruiter, {
+      companyDescription: 'New company profile copy'
+    });
+  }, /Only company owners/);
 });
 
 test('validation middleware sanitizes valid input payloads', async () => {

@@ -154,7 +154,9 @@ const enforcePlanLimit = (action) => async (req, res, next) => {
     req.subscriptionContext = await assertWithinLimit(req.user, action);
     next();
   } catch (error) {
-    res.status(error.statusCode || 500).json({ message: error.message || 'Plan limit check failed' });
+    const payload = { message: error.message || 'Plan limit check failed' };
+    res.locals.responseMessage = payload.message;
+    res.status(error.statusCode || 500).json(payload);
   }
 };
 

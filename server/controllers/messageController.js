@@ -73,7 +73,13 @@ const sendMessage = async (req, res) => {
     await Notification.create({
       user: receiver._id,
       type: 'message',
-      message: `New message from ${req.user.name} about ${job.title}`
+      message: `New message from ${req.user.name} about ${job.title}`,
+      link: `/messages?jobId=${job._id}&participantId=${req.user._id}`,
+      metadata: {
+        jobId: String(job._id),
+        applicationId: application?._id ? String(application._id) : '',
+        senderId: String(req.user._id)
+      }
     });
 
     res.status(201).json(message);
@@ -97,7 +103,28 @@ const getConversations = async (req, res) => {
   messages.forEach((message) => {
     if (seen.has(message.conversationKey)) return;
     seen.add(message.conversationKey);
-    conversations.push(message);
+    const counterpart = String(message.sender?._id || message.sender) === String(req.user._id)
+      ? message.receiver
+      : message.sender;
+    const unreadCount = messages.filter((entry) => (
+      entry.conversationKey === message.conversationKey
+      && String(entry.receiver?._id || entry.receiver) === String(req.user._id)
+      && !entry.read
+    )).length;
+
+    conversations.push({
+      conversationKey: message.conversationKey,
+      job: message.jobId,
+      participant: counterpart,
+      lastMessage: {
+        _id: message._id,
+        content: message.content,
+        createdAt: message.createdAt,
+        sender: message.sender
+      },
+      unreadCount,
+      applicationId: message.applicationId || null
+    });
   });
 
   res.json(conversations);

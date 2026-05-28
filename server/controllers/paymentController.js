@@ -6,6 +6,13 @@ const PricingPlan = require('../models/pricingPlanModel');
 const Subscription = require('../models/subscriptionModel');
 const User = require('../models/userModel');
 const { getBillingOwnerId } = require('../middleware/subscriptionMiddleware');
+const {
+  calculateBillingPeriod,
+  summarizeSubscriptionLifecycle,
+  markSubscriptionPastDue,
+  buildInvoiceHtml
+} = require('../utils/billingLifecycle');
+const { createAuditLog } = require('../utils/auditLogger');
 
 const PAYSTACK_BASE_URL = 'https://api.paystack.co';
 
@@ -49,6 +56,54 @@ const callPaystack = async (path, options = {}) => {
   }
 
   return payload;
+};
+
+const getLatestManagedSubscription = async (userId) => Subscription.findOne({
+  user: userId,
+  status: { $in: ['active', 'trialing', 'past_due', 'cancelled', 'expired'] }
+})
+  .sort({ createdAt: -1 })
+  .populate('plan payment pendingPlan');
+
+const createOrRenewSubscription = async ({ payment, plan }) => {
+  const now = payment.paidAt || new Date();
+  const { start, end } = calculateBillingPeriod(plan.interval, now);
+
+  let subscription = await Subscription.findOne({
+    user: payment.user,
+    status: { $in: ['active', 'trialing', 'past_due'] }
+  }).sort({ createdAt: -1 });
+
+  if (subscription) {
+    subscription.plan = subscription.pendingPlan || plan._id;
+    subscription.payment = payment._id;
+    subscription.status = 'active';
+    subscription.cancelAtPeriodEnd = false;
+    subscription.pendingPlan = undefined;
+    subscription.currentPeriodStart = start;
+    subscription.currentPeriodEnd = end;
+    subscription.expiresAt = end;
+    subscription.lastRenewedAt = now;
+    subscription.renewalFailedAt = undefined;
+    subscription.gracePeriodEndsAt = undefined;
+    await subscription.save();
+  } else {
+    subscription = await Subscription.create({
+      user: payment.user,
+      plan: plan._id,
+      payment: payment._id,
+      role: plan.role,
+      status: 'active',
+      startedAt: now,
+      currentPeriodStart: start,
+      currentPeriodEnd: end,
+      expiresAt: end,
+      lastRenewedAt: now
+    });
+  }
+
+  await User.findByIdAndUpdate(payment.user, { currentSubscription: subscription._id });
+  return subscription;
 };
 
 const applySuccessfulPayment = async (payment, paystackData = {}) => {
@@ -99,26 +154,11 @@ const applySuccessfulPayment = async (payment, paystackData = {}) => {
   if (payment.purpose === 'subscription' && payment.plan) {
     const plan = await PricingPlan.findById(payment.plan);
     if (plan) {
-      const expiresAt = plan.interval === 'yearly'
-        ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-        : plan.interval === 'monthly'
-          ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-          : undefined;
-
-      await Subscription.updateMany(
-        { user: payment.user, status: { $in: ['active', 'trialing', 'past_due'] } },
-        { status: 'cancelled', cancelledAt: new Date() }
-      );
-      const subscription = await Subscription.create({
-        user: payment.user,
-        plan: plan._id,
-        payment: payment._id,
-        role: plan.role,
-        status: 'active',
-        expiresAt
-      });
-
-      await User.findByIdAndUpdate(payment.user, { currentSubscription: subscription._id });
+      const { start, end } = calculateBillingPeriod(plan.interval, payment.paidAt || new Date());
+      payment.billingPeriodStart = start;
+      payment.billingPeriodEnd = end;
+      await payment.save();
+      await createOrRenewSubscription({ payment, plan });
     }
   }
 
@@ -175,6 +215,7 @@ const initializePayment = async (req, res) => {
     let plan = null;
     let finalAmount = amount;
     let finalCurrency = currency;
+    let billingPeriod = { start: null, end: null };
     if (planId) {
       plan = await PricingPlan.findById(planId);
       if (!plan) return res.status(404).json({ message: 'Pricing plan not found' });
@@ -185,6 +226,7 @@ const initializePayment = async (req, res) => {
       if (plan.price <= 0) return res.status(400).json({ message: 'Use the free-plan endpoint for free plans' });
       finalAmount = plan.price;
       finalCurrency = plan.currency;
+      billingPeriod = calculateBillingPeriod(plan.interval, new Date());
     }
 
     const subunitAmount = toSubunitAmount({ amount: finalAmount, amountSubunit: plan ? undefined : amountSubunit });
@@ -233,8 +275,11 @@ const initializePayment = async (req, res) => {
         jobId: jobId || '',
         planId: planId || '',
         purpose,
-        durationDays: durationDays || ''
+        durationDays: durationDays || '',
+        currentSubscriptionId: purpose === 'subscription' ? String(req.user.currentSubscription || '') : ''
       },
+      billingPeriodStart: billingPeriod.start,
+      billingPeriodEnd: billingPeriod.end,
       rawResponse: paystackPayload?.data
     });
 
@@ -242,6 +287,19 @@ const initializePayment = async (req, res) => {
       job.paymentStatus = 'unpaid';
       await job.save();
     }
+    await createAuditLog(req, {
+      action: 'billing.payment_initialized',
+      entityType: 'payment',
+      entityId: payment._id,
+      jobId: payment.job,
+      metadata: {
+        purpose,
+        amount: payment.amount,
+        currency: payment.currency,
+        planId: planId || '',
+        jobId: jobId || ''
+      }
+    });
 
     res.status(201).json({
       message: 'Payment initialized',
@@ -270,6 +328,17 @@ const verifyPayment = async (req, res) => {
 
     if (payload.data.status === 'success') {
       await applySuccessfulPayment(payment, payload.data);
+      await createAuditLog(req, {
+        action: 'billing.payment_verified',
+        entityType: 'payment',
+        entityId: payment._id,
+        jobId: payment.job,
+        metadata: {
+          purpose: payment.purpose,
+          status: 'success',
+          reference
+        }
+      });
     } else {
       payment.status = payload.data.status || 'failed';
       payment.gatewayResponse = payload.data.gateway_response;
@@ -277,6 +346,26 @@ const verifyPayment = async (req, res) => {
       payment.nextRetryAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       payment.rawResponse = payload.data;
       await payment.save();
+      if (payment.purpose === 'subscription') {
+        const subscription = await getLatestManagedSubscription(payment.user);
+        await markSubscriptionPastDue({
+          subscription,
+          payment,
+          reason: payment.failureReason
+        });
+      }
+      await createAuditLog(req, {
+        action: 'billing.payment_failed',
+        entityType: 'payment',
+        entityId: payment._id,
+        jobId: payment.job,
+        metadata: {
+          purpose: payment.purpose,
+          status: payment.status,
+          reference,
+          reason: payment.failureReason || ''
+        }
+      });
     }
 
     res.json({ message: 'Payment verified', payment });
@@ -330,6 +419,7 @@ const getBillingPortal = async (req, res) => {
 
   res.json({
     subscription,
+    lifecycle: summarizeSubscriptionLifecycle(subscription),
     invoices,
     paymentHistory: payments,
     failedPayments: payments.filter((payment) => ['failed', 'abandoned'].includes(payment.status))
@@ -395,12 +485,51 @@ const retryPayment = async (req, res) => {
     },
     rawResponse: paystackPayload?.data
   });
+  await createAuditLog(req, {
+    action: 'billing.payment_retried',
+    entityType: 'payment',
+    entityId: retriedPayment._id,
+    jobId: retriedPayment.job,
+    metadata: {
+      originalPaymentId: String(originalPayment._id),
+      purpose: retriedPayment.purpose,
+      retryCount: originalPayment.retryCount
+    }
+  });
 
   res.status(201).json({
     message: 'Payment retry initialized',
     payment: retriedPayment,
     authorizationUrl: retriedPayment.authorizationUrl || null
   });
+};
+
+const downloadInvoice = async (req, res) => {
+  const billingUserId = getBillingOwnerId(req.user);
+  const payment = await Payment.findById(req.params.paymentId)
+    .populate('plan', 'name')
+    .populate('job', 'title');
+  if (!payment) return res.status(404).json({ message: 'Payment not found' });
+  if (String(payment.user) !== String(billingUserId) && String(payment.user) !== String(req.user._id)) {
+    return res.status(403).json({ message: 'Not authorized to download this invoice' });
+  }
+
+  const subscription = await Subscription.findOne({ payment: payment._id }).populate('plan', 'name');
+  const invoiceHtml = buildInvoiceHtml({ payment, subscription });
+  await createAuditLog(req, {
+    action: 'billing.invoice_downloaded',
+    entityType: 'payment',
+    entityId: payment._id,
+    jobId: payment.job,
+    metadata: {
+      invoiceNumber: payment.invoiceNumber || payment.reference,
+      purpose: payment.purpose
+    }
+  });
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${payment.invoiceNumber || payment.reference}.html"`);
+  res.send(invoiceHtml);
 };
 
 const handlePaystackWebhook = async (req, res) => {
@@ -416,11 +545,38 @@ const handlePaystackWebhook = async (req, res) => {
   }
 
   const event = req.body;
-  if (event.event === 'charge.success') {
-    const reference = event.data?.reference;
-    const payment = await Payment.findOne({ reference });
-    if (payment && payment.status !== 'success') {
-      await applySuccessfulPayment(payment, event.data);
+  const reference = event.data?.reference;
+  const payment = reference ? await Payment.findOne({ reference }) : null;
+  const eventId = event.data?.id ? String(event.data.id) : null;
+
+  if (payment && eventId) {
+    const handledEvents = payment.webhookEvents || [];
+    if (handledEvents.includes(eventId)) {
+      return res.sendStatus(200);
+    }
+    payment.webhookEvents = [...handledEvents, eventId];
+    await payment.save();
+  }
+
+  if (event.event === 'charge.success' && payment && payment.status !== 'success') {
+    await applySuccessfulPayment(payment, event.data);
+  }
+
+  if ((event.event === 'charge.failed' || event.event === 'charge.dispute.create') && payment) {
+    payment.status = 'failed';
+    payment.failureReason = event.data?.gateway_response || event.data?.message || 'Payment failed';
+    payment.gatewayResponse = event.data?.gateway_response || payment.gatewayResponse;
+    payment.nextRetryAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    payment.rawResponse = event.data;
+    await payment.save();
+
+    if (payment.purpose === 'subscription') {
+      const subscription = await getLatestManagedSubscription(payment.user);
+      await markSubscriptionPastDue({
+        subscription,
+        payment,
+        reason: payment.failureReason
+      });
     }
   }
 
@@ -434,5 +590,6 @@ module.exports = {
   getMyPayments,
   getBillingPortal,
   retryPayment,
+  downloadInvoice,
   handlePaystackWebhook
 };

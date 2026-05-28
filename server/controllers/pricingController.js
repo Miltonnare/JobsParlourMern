@@ -1,6 +1,8 @@
 const PricingPlan = require('../models/pricingPlanModel');
 const Subscription = require('../models/subscriptionModel');
 const { DEFAULT_PLANS } = require('../config/defaultPlans');
+const { summarizeSubscriptionLifecycle } = require('../utils/billingLifecycle');
+const { createAuditLog } = require('../utils/auditLogger');
 
 const getBillingUserId = (currentUser) => currentUser.role === 'employer' && currentUser.companyId
   ? currentUser.companyId
@@ -31,23 +33,46 @@ const seedPricingPlans = async (req, res) => {
 
 const createPricingPlan = async (req, res) => {
   const plan = await PricingPlan.create(req.body);
+  await createAuditLog(req, {
+    action: 'pricing.plan_created',
+    entityType: 'pricing_plan',
+    entityId: plan._id,
+    metadata: {
+      slug: plan.slug,
+      role: plan.role,
+      price: plan.price,
+      interval: plan.interval
+    }
+  });
   res.status(201).json(plan);
 };
 
 const updatePricingPlan = async (req, res) => {
   const plan = await PricingPlan.findByIdAndUpdate(req.params.id, req.body, { new: true });
   if (!plan) return res.status(404).json({ message: 'Pricing plan not found' });
+  await createAuditLog(req, {
+    action: 'pricing.plan_updated',
+    entityType: 'pricing_plan',
+    entityId: plan._id,
+    metadata: {
+      slug: plan.slug,
+      updatedFields: Object.keys(req.body || {})
+    }
+  });
   res.json(plan);
 };
 
 const getMySubscription = async (req, res) => {
   const subscription = await Subscription.findOne({
     user: getBillingUserId(req.user),
-    status: 'active',
+    status: { $in: ['active', 'trialing', 'past_due', 'cancelled', 'expired'] },
     $or: [{ expiresAt: { $exists: false } }, { expiresAt: null }, { expiresAt: { $gt: new Date() } }]
   }).populate('plan payment');
 
-  res.json({ subscription });
+  res.json({
+    subscription,
+    lifecycle: summarizeSubscriptionLifecycle(subscription)
+  });
 };
 
 const activateFreePlan = async (req, res) => {
@@ -67,6 +92,15 @@ const activateFreePlan = async (req, res) => {
 
   req.user.currentSubscription = subscription._id;
   await req.user.save();
+  await createAuditLog(req, {
+    action: 'billing.free_plan_activated',
+    entityType: 'subscription',
+    entityId: subscription._id,
+    metadata: {
+      planId: plan._id,
+      planSlug: plan.slug
+    }
+  });
 
   res.status(201).json({ message: 'Free plan activated', subscription });
 };
@@ -101,6 +135,16 @@ const changeSubscriptionPlan = async (req, res) => {
       role: req.user.role,
       status: 'active'
     });
+    await createAuditLog(req, {
+      action: 'billing.plan_changed',
+      entityType: 'subscription',
+      entityId: subscription._id,
+      metadata: {
+        planId: targetPlan._id,
+        planSlug: targetPlan.slug,
+        requiresPayment: false
+      }
+    });
 
     return res.json({
       message: 'Plan changed successfully',
@@ -113,6 +157,17 @@ const changeSubscriptionPlan = async (req, res) => {
     currentSubscription.pendingPlan = targetPlan._id;
     await currentSubscription.save();
   }
+  await createAuditLog(req, {
+    action: 'billing.plan_change_requested',
+    entityType: 'subscription',
+    entityId: currentSubscription?._id,
+    metadata: {
+      currentPlanId: currentSubscription?.plan?._id || '',
+      targetPlanId: targetPlan._id,
+      targetPlanSlug: targetPlan.slug,
+      requiresPayment: true
+    }
+  });
 
   res.json({
     message: 'Plan change requested. Initialize a subscription payment to complete the upgrade or downgrade.',
@@ -132,12 +187,19 @@ const cancelSubscription = async (req, res) => {
   if (!subscription) return res.status(404).json({ message: 'No active subscription found' });
 
   subscription.cancelAtPeriodEnd = true;
-  subscription.status = 'cancelled';
-  subscription.cancelledAt = new Date();
   await subscription.save();
+  await createAuditLog(req, {
+    action: 'billing.subscription_cancelled',
+    entityType: 'subscription',
+    entityId: subscription._id,
+    metadata: {
+      planId: subscription.plan?._id || '',
+      cancelAtPeriodEnd: true
+    }
+  });
 
   res.json({
-    message: 'Subscription cancelled',
+    message: 'Subscription will cancel at the end of the current billing period',
     subscription
   });
 };

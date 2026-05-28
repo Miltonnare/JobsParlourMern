@@ -3,6 +3,7 @@ const JobAlert = require('../models/jobAlertModel');
 const Job = require('../models/jobModel');
 const Notification = require('../models/notificationModel');
 const { sendJobAlertDigestEmail } = require('./mailer');
+const { runBillingLifecycle } = require('./billingLifecycle');
 
 const runJobAlerts = async () => {
   console.log('[Scheduler] Running Job Alerts check...');
@@ -112,11 +113,15 @@ const initScheduler = () => {
   // Run daily at midnight
   cron.schedule('0 0 * * *', () => {
     runJobAlerts();
+    runBillingLifecycle().catch((error) => {
+      console.error('[Scheduler] Error running billing lifecycle:', error);
+    });
   });
   console.log('[Scheduler] Job Alert email digest scheduler initialized to run daily at midnight.');
 };
 
 module.exports = {
   runJobAlerts,
+  runBillingLifecycle,
   initScheduler
 };

@@ -11,12 +11,14 @@ const {
   applyToJob,
   getMyApplications,
   getMyApplicantsForEmployerByJobs,
+  bulkUpdateApplications,
   exportApplicantsCsv,
   updateApplicationStatus,
   toggleJobStatus,
   reportJob,
   scheduleInterview,
   updateInterview,
+  downloadInterviewInvite,
   addApplicationNote,
   updateApplicationStage,
   getApplicationTimeline,
@@ -39,6 +41,14 @@ const { uploadResume: resumeUploadMiddleware } = require('../middleware/uploadMi
 router.get('/',getAllJobs);
 router.get('/my-applications', protect, restrictTo('jobseeker'), getMyApplications);
 router.get('/applicants', protect, restrictTo('employer'), requireEmployerCapability('applications.review'), getMyApplicantsForEmployerByJobs);
+router.patch('/:jobId/applications/bulk', protect, restrictTo('employer'), requireEmployerCapability('applications.advance'), validate({
+  params:[idField('jobId',{required:true,label:'job id'})],
+  body:[
+    stringField('action',{required:true,enum:['move_stage','archive','unarchive','set_status']}),
+    stringField('stage',{enum:['applied','screening','interviewing','offered','hired','rejected']}),
+    stringField('status',{enum:['pending','shortlisted','rejected','hired']})
+  ]
+}), bulkUpdateApplications);
 router.get('/applicants/export', protect, restrictTo('employer'), requireEmployerCapability('jobs.exportApplicants'), enforcePlanLimit('export_applicants'), exportApplicantsCsv);
 router.post('/create', protect, restrictTo('employer'), requireEmployerCapability('jobs.create'), validate({
   body:[
@@ -109,7 +119,8 @@ router.post('/:id/report', protect, validate({
   params:[idField('id',{required:true,label:'job id'})],
   body:[
     stringField('reason',{required:true,minLength:3,maxLength:500}),
-    stringField('details',{maxLength:3000})
+    stringField('details',{maxLength:3000}),
+    stringField('category',{enum:['spam','scam','abuse','misleading','other']})
   ]
 }), reportJob);
 
@@ -144,6 +155,13 @@ router.patch('/:jobId/applications/:applicationId/interviews/:interviewId', prot
     stringField('meetingLink',{maxLength:500})
   ]
 }), updateInterview);
+router.get('/:jobId/applications/:applicationId/interviews/:interviewId/invite', protect, validate({
+  params:[
+    idField('jobId',{required:true,label:'job id'}),
+    idField('applicationId',{required:true,label:'application id'}),
+    idField('interviewId',{required:true,label:'interview id'})
+  ]
+}), downloadInterviewInvite);
 router.post('/:jobId/applications/:applicationId/notes', protect, restrictTo('employer'), requireEmployerCapability('applications.notes'), validate({
   params:[
     idField('jobId',{required:true,label:'job id'}),

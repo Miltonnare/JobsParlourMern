@@ -50,10 +50,20 @@ const paymentSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  webhookEvents: {
+    type: [String],
+    default: []
+  },
   lastRetriedAt: {
     type: Date
   },
   nextRetryAt: {
+    type: Date
+  },
+  billingPeriodStart: {
+    type: Date
+  },
+  billingPeriodEnd: {
     type: Date
   },
   authorizationUrl: {

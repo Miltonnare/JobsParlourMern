@@ -74,6 +74,36 @@ const jobSchema=new mongoose.Schema({
         type:Number,
         default:0
     },
+    moderation:{
+        isFlagged:{
+            type:Boolean,
+            default:false
+        },
+        suspiciousScore:{
+            type:Number,
+            default:0
+        },
+        reasons:[String],
+        reviewStatus:{
+            type:String,
+            enum:['none','reviewing','cleared','actioned'],
+            default:'none'
+        },
+        reviewerNotes:{
+            type:String,
+            default:''
+        },
+        lastFlaggedAt:{
+            type:Date
+        },
+        lastReviewedAt:{
+            type:Date
+        },
+        reviewedBy:{
+            type:mongoose.Schema.Types.ObjectId,
+            ref:'UserModel'
+        }
+    },
     createdBy:{
         type:mongoose.Schema.Types.ObjectId,
         ref:'UserModel',
@@ -93,6 +123,13 @@ const jobSchema=new mongoose.Schema({
                 type:String,
                 enum:['pending','shortlisted','rejected','hired'],
                 default:'pending'
+            },
+            archived:{
+                type:Boolean,
+                default:false
+            },
+            archivedAt:{
+                type:Date
             },
             note:{
                 type:String,

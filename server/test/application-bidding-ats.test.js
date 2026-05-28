@@ -41,3 +41,29 @@ test('job applications store bid, ATS, resume, and candidate snapshot data', () 
   assert.deepEqual(job.applications[0].candidateSnapshot.skills, ['React', 'Node']);
   assert.equal(job.validateSync(), undefined);
 });
+
+test('job applications support ATS pipeline stages and archive state', () => {
+  const job = new Job({
+    title: 'Platform Engineer',
+    description: 'Own internal systems.',
+    location: 'Hybrid',
+    createdBy: new mongoose.Types.ObjectId(),
+    applications: [{
+      user: new mongoose.Types.ObjectId(),
+      stage: 'screening',
+      status: 'shortlisted',
+      archived: true,
+      archivedAt: new Date(),
+      stageHistory: [{
+        stage: 'screening',
+        updatedByName: 'Recruiter'
+      }]
+    }]
+  });
+
+  assert.equal(job.applications[0].stage, 'screening');
+  assert.equal(job.applications[0].status, 'shortlisted');
+  assert.equal(job.applications[0].archived, true);
+  assert.ok(job.applications[0].archivedAt instanceof Date);
+  assert.equal(job.validateSync(), undefined);
+});

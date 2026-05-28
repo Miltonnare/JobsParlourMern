@@ -20,6 +20,11 @@ const errorHandler = (error, req, res, next) => {
     payload.details = error.details;
   }
 
+  res.locals.responseMessage = payload.message;
+  if (payload.details !== undefined) {
+    res.locals.responseDetails = payload.details;
+  }
+
   if (statusCode >= 500) {
     console.error(JSON.stringify({
       level: 'error',

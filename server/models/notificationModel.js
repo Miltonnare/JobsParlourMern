@@ -15,6 +15,14 @@ const notificationSchema = new mongoose.Schema({
     enum: ['application', 'status', 'job', 'system', 'job_alert', 'message', 'billing'],
     default: 'system'
   },
+  link: {
+    type: String,
+    default: ''
+  },
+  metadata: {
+    type: Object,
+    default: {}
+  },
   read: {
     type: Boolean,
     default: false

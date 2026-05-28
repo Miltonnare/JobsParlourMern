@@ -1,14 +1,26 @@
 const { getBillingOwnerId } = require('./subscriptionMiddleware');
+const { createHttpError } = require('./errorMiddleware');
+
+const COMPANY_MANAGED_FIELDS = [
+  'companyName',
+  'companyWebsite',
+  'companyLogo',
+  'industry',
+  'companyDescription'
+];
 
 const EMPLOYER_CAPABILITIES = {
   owner: new Set([
     'billing.manage',
+    'company.manage',
     'team.manage',
+    'team.view',
     'jobs.create',
     'jobs.update',
     'jobs.delete',
     'jobs.feature',
     'jobs.exportApplicants',
+    'audit.view',
     'applications.review',
     'applications.advance',
     'applications.notes',
@@ -79,10 +91,27 @@ const requireBillingAccess = (req, res, next) => {
   next();
 };
 
+const assertEmployerCanManageCompanyFields = (currentUser, payload = {}) => {
+  if (currentUser?.role !== 'employer') return [];
+
+  const attemptedFields = COMPANY_MANAGED_FIELDS.filter((field) => payload[field] !== undefined);
+  if (attemptedFields.length === 0) return [];
+
+  if (!hasEmployerCapability(currentUser, 'company.manage')) {
+    throw createHttpError(403, 'Only company owners can update company profile settings', {
+      restrictedFields: attemptedFields
+    });
+  }
+
+  return attemptedFields;
+};
+
 module.exports = {
+  COMPANY_MANAGED_FIELDS,
   EMPLOYER_CAPABILITIES,
   getEmployerRole,
   hasEmployerCapability,
   requireEmployerCapability,
-  requireBillingAccess
+  requireBillingAccess,
+  assertEmployerCanManageCompanyFields
 };

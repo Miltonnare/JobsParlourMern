@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const Payment = require('../models/paymentModel');
 const Message = require('../models/messageModel');
 const Job = require('../models/jobModel');
+const Notification = require('../models/notificationModel');
 
 test('payment model supports invoices, retries, and profile boosts', () => {
   const payment = new Payment({
@@ -44,6 +45,23 @@ test('message model stores company-scoped job conversations', () => {
   assert.equal(message.conversationKey, `thread:${jobId}`);
   assert.equal(message.read, false);
   assert.equal(message.validateSync(), undefined);
+});
+
+test('notification model stores deep-link metadata for inbox and workflow events', () => {
+  const notification = new Notification({
+    user: new mongoose.Types.ObjectId(),
+    type: 'message',
+    message: 'New message from hiring team',
+    link: '/messages?jobId=abc&participantId=def',
+    metadata: {
+      jobId: 'abc',
+      applicationId: 'def'
+    }
+  });
+
+  assert.equal(notification.link, '/messages?jobId=abc&participantId=def');
+  assert.equal(notification.metadata.jobId, 'abc');
+  assert.equal(notification.validateSync(), undefined);
 });
 
 test('job model stores featured analytics and interview scheduling details', () => {

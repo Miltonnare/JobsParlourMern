@@ -40,6 +40,24 @@ const subscriptionSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  currentPeriodStart: {
+    type: Date
+  },
+  currentPeriodEnd: {
+    type: Date
+  },
+  lastRenewedAt: {
+    type: Date
+  },
+  renewalFailedAt: {
+    type: Date
+  },
+  gracePeriodEndsAt: {
+    type: Date
+  },
+  autoDowngradedAt: {
+    type: Date
+  },
   expiresAt: {
     type: Date
   },

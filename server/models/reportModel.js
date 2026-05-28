@@ -19,6 +19,20 @@ const reportSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  category: {
+    type: String,
+    enum: ['spam', 'scam', 'abuse', 'misleading', 'other'],
+    default: 'other'
+  },
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high'],
+    default: 'medium'
+  },
+  adminNotes: {
+    type: String,
+    default: ''
+  },
   status: {
     type: String,
     enum: ['open', 'reviewing', 'resolved', 'dismissed'],

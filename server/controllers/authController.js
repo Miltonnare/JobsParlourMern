@@ -3,6 +3,7 @@ const Job=require('../models/jobModel');
 const Notification=require('../models/notificationModel');
 const Report=require('../models/reportModel');
 const Subscription=require('../models/subscriptionModel');
+const AuditLog=require('../models/auditLogModel');
 const bycrypt=require('bcryptjs');
 const jwt=require('jsonwebtoken');
 const crypto=require('crypto');
@@ -18,6 +19,8 @@ const {
     syncPrimaryResumeFields,
     ensureSinglePrimaryResume
 } = require('../utils/resumeLibrary');
+const { createAuditLog } = require('../utils/auditLogger');
+const { hasEmployerCapability, assertEmployerCanManageCompanyFields } = require('../middleware/capabilityMiddleware');
 
 const buildUserResponse=(currentUser)=>({
     id:currentUser._id,
@@ -98,6 +101,18 @@ const sendVerificationForUser=async (currentUser)=>{
     return expires;
 };
 
+const getVerificationEmailErrorMessage=(error)=>{
+    if (!error) {
+        return 'Verification email could not be sent.';
+    }
+
+    if (error.code === 'SMTP_AUTH_FAILED') {
+        return 'Your account was created, but the verification email could not be sent because the email service login was rejected. Update the server SMTP credentials and resend verification from your account.';
+    }
+
+    return error.message || 'Verification email could not be sent.';
+};
+
 const registerUser=async (req,res)=>{
     try {
         const {name,email,password,role,companyName}=req.body;
@@ -133,7 +148,7 @@ const registerUser=async (req,res)=>{
             await sendVerificationForUser(newUser);
             verificationEmailSent=true;
         } catch (mailError) {
-            verificationEmailError=mailError.message;
+            verificationEmailError=getVerificationEmailErrorMessage(mailError);
             console.error('Email verification send failed:', mailError.message);
         }
 
@@ -264,6 +279,7 @@ const updateProfile=async (req,res)=>{
         'name','companyName','companyWebsite','companyLogo','profileImage','industry','companyDescription',
         'bio','skills','education','experience','resumeUrl','resumeText','expectedRate','availability'
     ];
+    const companyFieldsUpdated=assertEmployerCanManageCompanyFields(req.user, req.body);
 
     allowedFields.forEach(field=>{
         if(req.body[field]!==undefined){
@@ -275,6 +291,16 @@ const updateProfile=async (req,res)=>{
 
     syncProfileInsights(req.user,'profile');
     await req.user.save();
+    if(companyFieldsUpdated.length>0){
+        await createAuditLog(req,{
+            action:'company.profile_updated',
+            entityType:'company',
+            entityId:getBillingOwnerId(req.user),
+            metadata:{
+                fields:companyFieldsUpdated
+            }
+        });
+    }
 
     res.json({ user:buildUserResponse(req.user) });
 };
@@ -398,12 +424,25 @@ const uploadProfileImage=async (req,res)=>{
         });
 
         if(req.user.role==='employer' && req.body.target==='companyLogo'){
+            if(!hasEmployerCapability(req.user,'company.manage')){
+                return res.status(403).json({message:'Only company owners can update company profile settings'});
+            }
             req.user.companyLogo=result.secure_url;
         } else {
             req.user.profileImage=result.secure_url;
         }
 
         await req.user.save();
+        if(req.user.role==='employer' && req.body.target==='companyLogo'){
+            await createAuditLog(req,{
+                action:'company.profile_updated',
+                entityType:'company',
+                entityId:getBillingOwnerId(req.user),
+                metadata:{
+                    fields:['companyLogo']
+                }
+            });
+        }
 
         res.status(201).json({
             message:'Image uploaded',
@@ -528,7 +567,8 @@ const toggleSavedJob=async (req,res)=>{
 
 const getNotifications=async (req,res)=>{
     const notifications=await Notification.find({user:req.user._id}).sort({createdAt:-1}).limit(50);
-    res.json(notifications);
+    const unreadCount=await Notification.countDocuments({user:req.user._id,read:false});
+    res.json({notifications,unreadCount});
 };
 
 const markNotificationsRead=async (req,res)=>{
@@ -537,12 +577,14 @@ const markNotificationsRead=async (req,res)=>{
 };
 
 const getAdminStats=async (req,res)=>{
-    const [users,jobs,activeJobs,applications,reports]=await Promise.all([
+    const [users,jobs,activeJobs,applications,reports,flaggedJobs,unverifiedEmployers]=await Promise.all([
         user.countDocuments(),
         Job.countDocuments(),
         Job.countDocuments({status:'active'}),
         Job.aggregate([{ $project:{ count:{ $size:'$applications' } } },{ $group:{ _id:null,total:{ $sum:'$count' } } }]),
-        Report.countDocuments({status:{$in:['open','reviewing']}})
+        Report.countDocuments({status:{$in:['open','reviewing']}}),
+        Job.countDocuments({ 'moderation.isFlagged': true, 'moderation.reviewStatus': { $in:['reviewing','none'] } }),
+        user.countDocuments({ role:'employer', 'employerVerification.status': { $ne:'verified' } })
     ]);
 
     res.json({
@@ -550,7 +592,9 @@ const getAdminStats=async (req,res)=>{
         jobs,
         activeJobs,
         applications:applications[0]?.total || 0,
-        openReports:reports
+        openReports:reports,
+        flaggedJobs,
+        unverifiedEmployers
     });
 };
 
@@ -604,7 +648,7 @@ const deleteAdminJob=async (req,res)=>{
 
 const getAdminReports=async (req,res)=>{
     const reports=await Report.find()
-        .populate('job','title location status')
+        .populate('job','title location status moderation')
         .populate('reportedBy','name email role')
         .sort({createdAt:-1});
 
@@ -619,14 +663,122 @@ const updateAdminReport=async (req,res)=>{
 
     const report=await Report.findByIdAndUpdate(
         req.params.id,
-        {status:req.body.status},
+        {status:req.body.status, adminNotes:req.body.adminNotes ?? undefined},
         {new:true}
     )
-        .populate('job','title location status')
+        .populate('job','title location status moderation')
         .populate('reportedBy','name email role');
 
     if(!report) return res.status(404).json({message:'Report not found'});
+    await createAuditLog(req, {
+      action:'moderation.report_reviewed',
+      entityType:'report',
+      entityId:report._id,
+      jobId:report.job?._id,
+      metadata:{ status:report.status }
+    });
     res.json(report);
+};
+
+const getAdminModerationQueue = async (req, res) => {
+  const [flaggedJobs, employers] = await Promise.all([
+    Job.find({ 'moderation.isFlagged': true })
+      .populate('createdBy', 'name email companyName employerVerification trustFlags')
+      .sort({ 'moderation.lastFlaggedAt': -1, createdAt: -1 })
+      .limit(100),
+    user.find({
+      role: 'employer',
+      $or: [
+        { 'employerVerification.status': { $in:['unverified','pending','rejected'] } },
+        { 'trustFlags.reportCount': { $gt: 0 } },
+        { 'trustFlags.suspiciousJobCount': { $gt: 0 } }
+      ]
+    })
+      .select('-password')
+      .sort({ 'trustFlags.lastFlaggedAt': -1, createdAt: -1 })
+      .limit(100)
+  ]);
+
+  res.json({
+    flaggedJobs,
+    employers
+  });
+};
+
+const updateEmployerVerification = async (req, res) => {
+  const { status, notes = '' } = req.body;
+  const employer = await user.findById(req.params.id).select('-password');
+  if (!employer || employer.role !== 'employer') {
+    return res.status(404).json({ message:'Employer not found' });
+  }
+
+  employer.employerVerification = {
+    ...(employer.employerVerification || {}),
+    status,
+    notes,
+    reviewedAt: new Date(),
+    reviewedBy: req.user._id,
+    submittedAt: employer.employerVerification?.submittedAt || new Date()
+  };
+  await employer.save();
+  await createAuditLog(req, {
+    action:'moderation.employer_verification_updated',
+    entityType:'user',
+    entityId:employer._id,
+    targetUser:employer._id,
+    metadata:{ status, notesLength:notes.length }
+  });
+
+  res.json(employer);
+};
+
+const reviewFlaggedJob = async (req, res) => {
+  const { reviewStatus, reviewerNotes = '', status } = req.body;
+  const job = await Job.findById(req.params.id).populate('createdBy', 'name email companyName');
+  if (!job) return res.status(404).json({ message:'Job not found' });
+
+  job.moderation = {
+    ...(job.moderation || {}),
+    reviewStatus,
+    reviewerNotes,
+    lastReviewedAt: new Date(),
+    reviewedBy: req.user._id,
+    isFlagged: reviewStatus === 'cleared' ? false : true
+  };
+  if (status) {
+    job.status = status;
+  }
+  await job.save();
+  await createAuditLog(req, {
+    action:'moderation.job_reviewed',
+    entityType:'job',
+    entityId:job._id,
+    jobId:job._id,
+    metadata:{ reviewStatus, status:job.status }
+  });
+
+  res.json(job);
+};
+
+const getEmployerAuditLogs = async (req, res) => {
+  const companyId = getBillingOwnerId(req.user);
+  const logs = await AuditLog.find({ companyId })
+    .populate('actor', 'name email role employerRole')
+    .populate('targetUser', 'name email role employerRole')
+    .sort({ createdAt: -1 })
+    .limit(200);
+
+  res.json(logs);
+};
+
+const getAdminAuditLogs = async (req, res) => {
+  const logs = await AuditLog.find()
+    .populate('actor', 'name email role employerRole')
+    .populate('targetUser', 'name email role employerRole')
+    .sort({ createdAt: -1 })
+    .limit(250);
+
+  res.json(logs);
 };
 
 const addTeamMember = async (req, res) => {
@@ -672,6 +824,15 @@ const addTeamMember = async (req, res) => {
       employerRole: newMember.employerRole,
       companyId: newMember.companyId
     });
+    await createAuditLog(req, {
+      action: 'team.member_added',
+      entityType: 'user',
+      entityId: newMember._id,
+      targetUser: newMember._id,
+      metadata: {
+        employerRole
+      }
+    });
   } catch (error) {
     console.error('Error adding team member:', error);
     res.status(500).json({ message: 'Server Error', error: error.message });
@@ -711,6 +872,16 @@ const removeTeamMember = async (req, res) => {
     }
 
     await user.deleteOne({ _id: memberId });
+    await createAuditLog(req, {
+      action: 'team.member_removed',
+      entityType: 'user',
+      entityId: memberId,
+      targetUser: memberId,
+      metadata: {
+        memberName: member.name,
+        employerRole: member.employerRole
+      }
+    });
     res.json({ message: 'Team member removed successfully' });
   } catch (error) {
     console.error('Error removing team member:', error);
@@ -738,6 +909,15 @@ const updateTeamMemberRole = async (req, res) => {
 
     member.employerRole = employerRole;
     await member.save();
+    await createAuditLog(req, {
+      action: 'team.role_updated',
+      entityType: 'user',
+      entityId: member._id,
+      targetUser: member._id,
+      metadata: {
+        employerRole
+      }
+    });
 
     res.json({
       message: 'Team member role updated',
@@ -834,6 +1014,11 @@ module.exports={
     deleteAdminJob,
     getAdminReports,
     updateAdminReport,
+    getAdminModerationQueue,
+    updateEmployerVerification,
+    reviewFlaggedJob,
+    getEmployerAuditLogs,
+    getAdminAuditLogs,
     addTeamMember,
     getTeamMembers,
     removeTeamMember,
