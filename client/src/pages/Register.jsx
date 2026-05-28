@@ -34,6 +34,9 @@ const Register = () => {
 
         try {
             const res = await axios.post(import.meta.env.VITE_REACT_APP_REGISTER_URL, form);
+            if (res.data.verificationEmailSent === false && res.data.verificationEmailError) {
+                sessionStorage.setItem('registrationWarning', res.data.verificationEmailError);
+            }
             login(res.data);
             navigate(res.data.user.role === 'employer' ? '/employer-dashboard' : '/dashboard');
         } catch (err) {

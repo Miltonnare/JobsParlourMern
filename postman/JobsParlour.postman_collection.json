@@ -1,0 +1,1398 @@
+{
+  "info": {
+    "_postman_id": "b03eb9f4-a220-437d-b874-47e54ab4b9f0",
+    "name": "JobsParlour API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Postman collection for the JobsParlour MERN API. Set `baseUrl` to your API host, then use the auth requests to capture a bearer token into the `token` collection variable."
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "token", "value": "" },
+    { "key": "verifyToken", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "jobId", "value": "" },
+    { "key": "applicationId", "value": "" },
+    { "key": "interviewId", "value": "" },
+    { "key": "resumeId", "value": "" },
+    { "key": "teamMemberId", "value": "" },
+    { "key": "paymentId", "value": "" },
+    { "key": "paymentReference", "value": "" },
+    { "key": "planId", "value": "" },
+    { "key": "savedSearchId", "value": "" },
+    { "key": "jobAlertId", "value": "" },
+    { "key": "participantId", "value": "" },
+    { "key": "receiverId", "value": "" },
+    { "key": "reportId", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "API Root",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register Employer",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Owner\",\n  \"email\": \"owner@example.com\",\n  \"password\": \"Password123\",\n  \"role\": \"employer\",\n  \"companyName\": \"Acme Labs\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Register Jobseeker",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Fred Candidate\",\n  \"email\": \"jobseeker@example.com\",\n  \"password\": \"Password123\",\n  \"role\": \"jobseeker\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Register Admin",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Platform Admin\",\n  \"email\": \"admin@example.com\",\n  \"password\": \"Password123\",\n  \"role\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) pm.collectionVariables.set('token', json.token);",
+                  "if (json.user && json.user.id) pm.collectionVariables.set('userId', json.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"owner@example.com\",\n  \"password\": \"Password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-email?token={{verifyToken}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "verify-email"],
+              "query": [{ "key": "token", "value": "{{verifyToken}}" }]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "Resend Verification Email",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/resend-verification",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "resend-verification"]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"bio\": \"Full-stack engineer focused on hiring workflow products.\",\n  \"skills\": [\"Node.js\", \"React\", \"MongoDB\"],\n  \"education\": \"BSc Computer Science\",\n  \"experience\": \"5 years building SaaS products\",\n  \"expectedRate\": 4500,\n  \"availability\": \"Immediate\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Get Onboarding",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/onboarding",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "onboarding"]
+            }
+          }
+        },
+        {
+          "name": "Update Onboarding",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentStep\": \"personalization\",\n  \"completedSteps\": [\"profile\"],\n  \"answers\": {\n    \"goal\": \"Find a backend role\"\n  },\n  \"completed\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/onboarding",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "onboarding"]
+            }
+          }
+        },
+        {
+          "name": "Get Personalization",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/personalization",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "personalization"]
+            }
+          }
+        },
+        {
+          "name": "Update Personalization",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetRoles\": [\"Backend Engineer\"],\n  \"preferredLocations\": [\"Nairobi\", \"Remote\"],\n  \"preferredJobTypes\": [\"full-time\"],\n  \"preferredWorkplaces\": [\"remote\", \"hybrid\"],\n  \"preferredIndustries\": [\"SaaS\"],\n  \"salaryMin\": 120000,\n  \"salaryMax\": 250000,\n  \"openToBids\": true,\n  \"bidCurrency\": \"KES\",\n  \"skillsToImprove\": [\"System Design\"],\n  \"notificationPreferences\": {\n    \"email\": true,\n    \"inApp\": true\n  },\n  \"timezone\": \"Africa/Nairobi\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/personalization",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "personalization"]
+            }
+          }
+        },
+        {
+          "name": "Upload Resume",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "resume", "type": "file", "src": "" },
+                { "key": "label", "value": "Primary Resume", "type": "text" },
+                { "key": "setAsPrimary", "value": "true", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/resume",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "resume"]
+            }
+          }
+        },
+        {
+          "name": "Get My Resumes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/resumes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "resumes"]
+            }
+          }
+        },
+        {
+          "name": "Set Primary Resume",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/resumes/{{resumeId}}/primary",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "resumes", "{{resumeId}}", "primary"]
+            }
+          }
+        },
+        {
+          "name": "Delete Resume",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/resumes/{{resumeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "resumes", "{{resumeId}}"]
+            }
+          }
+        },
+        {
+          "name": "Parse Resume Text",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resumeText\": \"Fred Candidate\\nEmail: fred@example.com\\nSkills: Node.js, React, MongoDB\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/resume/parse",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "resume", "parse"]
+            }
+          }
+        },
+        {
+          "name": "Upload Profile Image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "image", "type": "file", "src": "" },
+                { "key": "target", "value": "profileImage", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/upload/image",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "upload", "image"]
+            }
+          }
+        },
+        {
+          "name": "Upload Company Logo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "image", "type": "file", "src": "" },
+                { "key": "target", "value": "companyLogo", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/upload/image",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "upload", "image"]
+            }
+          }
+        },
+        {
+          "name": "Upload Generic File",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/upload/file",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "upload", "file"]
+            }
+          }
+        },
+        {
+          "name": "Boost Profile",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"durationDays\": 14\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/profile/boost",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "profile", "boost"]
+            }
+          }
+        },
+        {
+          "name": "Get Saved Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/saved-jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "saved-jobs"]
+            }
+          }
+        },
+        {
+          "name": "Toggle Saved Job",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/saved-jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "saved-jobs", "{{jobId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "notifications"]
+            }
+          }
+        },
+        {
+          "name": "Mark Notifications Read",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/notifications/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "notifications", "read"]
+            }
+          }
+        },
+        {
+          "name": "Get Employer Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/audit-logs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "audit-logs"]
+            }
+          }
+        },
+        {
+          "name": "Admin - Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "admin", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Admin - Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "admin", "users"]
+            }
+          }
+        },
+        {
+          "name": "Admin - Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/audit-logs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "admin", "audit-logs"]
+            }
+          }
+        },
+        {
+          "name": "Admin - Update User",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated User\",\n  \"companyName\": \"Updated Company\",\n  \"role\": \"employer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "admin", "users", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "Admin - Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "admin", "users", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "Admin - Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "admin", "jobs"]
+            }
+          }
+        },
+        {
+          "name": "Admin - Delete Job",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "admin", "jobs", "{{jobId}}"]
+            }
+          }
+        },
+        {
+          "name": "Admin - Reports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/reports",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "admin", "reports"]
+            }
+          }
+        },
+        {
+          "name": "Admin - Update Report",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"resolved\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/reports/{{reportId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "admin", "reports", "{{reportId}}"]
+            }
+          }
+        },
+        {
+          "name": "Add Team Member",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Recruiter One\",\n  \"email\": \"recruiter@example.com\",\n  \"password\": \"Password123\",\n  \"employerRole\": \"recruiter\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/team",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "team"]
+            }
+          }
+        },
+        {
+          "name": "Get Team Members",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/team",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "team"]
+            }
+          }
+        },
+        {
+          "name": "Update Team Member Role",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employerRole\": \"hiring_manager\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/team/{{teamMemberId}}/role",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "team", "{{teamMemberId}}", "role"]
+            }
+          }
+        },
+        {
+          "name": "Delete Team Member",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/team/{{teamMemberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "team", "{{teamMemberId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Jobs",
+      "item": [
+        {
+          "name": "Get All Jobs",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs?status=active&page=1&limit=12",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs"],
+              "query": [
+                { "key": "status", "value": "active" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "12" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get My Applications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/my-applications",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "my-applications"]
+            }
+          }
+        },
+        {
+          "name": "Get Employer Applicants",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/applicants?archived=active&sort=newest",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "applicants"],
+              "query": [
+                { "key": "archived", "value": "active" },
+                { "key": "sort", "value": "newest" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Bulk Update Applications",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"applicationIds\": [\"{{applicationId}}\"],\n  \"action\": \"move_stage\",\n  \"stage\": \"screening\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/applications/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "applications", "bulk"]
+            }
+          }
+        },
+        {
+          "name": "Export Applicants CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/applicants/export",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "applicants", "export"]
+            }
+          }
+        },
+        {
+          "name": "Create Job",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json._id) pm.collectionVariables.set('jobId', json._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Backend Engineer\",\n  \"description\": \"Build APIs, workflows, and platform integrations for hiring products.\",\n  \"location\": \"Nairobi\",\n  \"jobType\": \"full-time\",\n  \"salary\": 180000,\n  \"workplace\": \"hybrid\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "create"]
+            }
+          }
+        },
+        {
+          "name": "Get Job By Id",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Job Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/analytics",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "analytics"]
+            }
+          }
+        },
+        {
+          "name": "Track Job Click",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/click",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "click"]
+            }
+          }
+        },
+        {
+          "name": "Feature Job",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"durationDays\": 30\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/feature",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "feature"]
+            }
+          }
+        },
+        {
+          "name": "Update Job",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Senior Backend Engineer\",\n  \"description\": \"Own backend services, integrations, and workflow reliability.\",\n  \"location\": \"Remote\",\n  \"jobType\": \"full-time\",\n  \"salary\": 220000,\n  \"workplace\": \"remote\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Job",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}"]
+            }
+          }
+        },
+        {
+          "name": "Toggle Job Status",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Update Application Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"shortlisted\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/applications/{{applicationId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "applications", "{{applicationId}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Apply To Job",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "note", "value": "I would love to contribute to this role.", "type": "text" },
+                { "key": "bidAmount", "value": "4500", "type": "text" },
+                { "key": "bidCurrency", "value": "USD", "type": "text" },
+                { "key": "bidType", "value": "hourly", "type": "text" },
+                { "key": "estimatedDuration", "value": "6 months", "type": "text" },
+                { "key": "availability", "value": "2 weeks notice", "type": "text" },
+                { "key": "resume", "type": "file", "src": "" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/apply",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "apply"]
+            }
+          }
+        },
+        {
+          "name": "Report Job",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Suspicious listing\",\n  \"details\": \"The job asks for payment before interviewing.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/report",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "report"]
+            }
+          }
+        },
+        {
+          "name": "Schedule Interview",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scheduledAt\": \"2026-06-15T10:00:00.000Z\",\n  \"duration\": 45,\n  \"type\": \"technical\",\n  \"interviewer\": \"Jane Recruiter\",\n  \"location\": \"Google Meet\",\n  \"meetingLink\": \"https://meet.google.com/example\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/applications/{{applicationId}}/interviews",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "applications", "{{applicationId}}", "interviews"]
+            }
+          }
+        },
+        {
+          "name": "Update Interview",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"scheduled\",\n  \"scheduledAt\": \"2026-06-16T12:00:00.000Z\",\n  \"duration\": 60,\n  \"meetingLink\": \"https://meet.google.com/updated-link\",\n  \"location\": \"Zoom\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/applications/{{applicationId}}/interviews/{{interviewId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "applications", "{{applicationId}}", "interviews", "{{interviewId}}"]
+            }
+          }
+        },
+        {
+          "name": "Download Interview Invite",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/applications/{{applicationId}}/interviews/{{interviewId}}/invite",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "applications", "{{applicationId}}", "interviews", "{{interviewId}}", "invite"]
+            }
+          }
+        },
+        {
+          "name": "Add Application Note",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Strong systems thinking and solid communication.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/applications/{{applicationId}}/notes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "applications", "{{applicationId}}", "notes"]
+            }
+          }
+        },
+        {
+          "name": "Update Application Stage",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stage\": \"interviewing\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/applications/{{applicationId}}/stage",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "applications", "{{applicationId}}", "stage"]
+            }
+          }
+        },
+        {
+          "name": "Get Application Timeline",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/applications/{{applicationId}}/timeline",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "applications", "{{applicationId}}", "timeline"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Get Paystack Config",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/config",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "config"]
+            }
+          }
+        },
+        {
+          "name": "Initialize Payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.payment && json.payment._id) pm.collectionVariables.set('paymentId', json.payment._id);",
+                  "if (json.reference) pm.collectionVariables.set('paymentReference', json.reference);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"purpose\": \"job_posting\",\n  \"amount\": 1000,\n  \"currency\": \"USD\",\n  \"jobId\": \"{{jobId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/initialize",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "initialize"]
+            }
+          }
+        },
+        {
+          "name": "Verify Payment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/verify/{{paymentReference}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "verify", "{{paymentReference}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Payment History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/history",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "history"]
+            }
+          }
+        },
+        {
+          "name": "Get Billing Portal",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/portal",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "portal"]
+            }
+          }
+        },
+        {
+          "name": "Download Invoice",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/invoices/{{paymentId}}/download",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "invoices", "{{paymentId}}", "download"]
+            }
+          }
+        },
+        {
+          "name": "Retry Payment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/{{paymentId}}/retry",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "{{paymentId}}", "retry"]
+            }
+          }
+        },
+        {
+          "name": "Paystack Webhook",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"charge.success\",\n  \"data\": {\n    \"id\": 123456,\n    \"reference\": \"{{paymentReference}}\",\n    \"status\": \"success\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/webhook",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "webhook"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pricing",
+      "item": [
+        {
+          "name": "Get Pricing Plans",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/pricing/plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "pricing", "plans"]
+            }
+          }
+        },
+        {
+          "name": "Seed Pricing Plans",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/pricing/plans/seed",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "pricing", "plans", "seed"]
+            }
+          }
+        },
+        {
+          "name": "Create Pricing Plan",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Employer Growth\",\n  \"slug\": \"employer-growth\",\n  \"role\": \"employer\",\n  \"price\": 3000,\n  \"currency\": \"USD\",\n  \"interval\": \"monthly\",\n  \"description\": \"For growing hiring teams\",\n  \"features\": [\"Unlimited jobs\", \"Exports\"],\n  \"limits\": {\n    \"activeJobs\": 20,\n    \"applicantExports\": 50,\n    \"featuredJobs\": 5\n  },\n  \"isActive\": true,\n  \"sortOrder\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pricing/plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "pricing", "plans"]
+            }
+          }
+        },
+        {
+          "name": "Update Pricing Plan",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 3500,\n  \"description\": \"Updated pricing plan\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pricing/plans/{{planId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "pricing", "plans", "{{planId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get My Subscription",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/pricing/subscription/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "pricing", "subscription", "me"]
+            }
+          }
+        },
+        {
+          "name": "Activate Free Plan",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/pricing/subscription/free/{{planId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "pricing", "subscription", "free", "{{planId}}"]
+            }
+          }
+        },
+        {
+          "name": "Change Subscription Plan",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"{{planId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/pricing/subscription/change-plan",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "pricing", "subscription", "change-plan"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Subscription",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/pricing/subscription/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "pricing", "subscription", "cancel"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Job Alerts",
+      "item": [
+        {
+          "name": "Create Job Alert",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Backend Engineer Alert\",\n  \"keywords\": [\"backend\", \"node\"],\n  \"location\": \"Remote\",\n  \"jobType\": \"full-time\",\n  \"frequency\": \"daily\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/job-alerts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "job-alerts"]
+            }
+          }
+        },
+        {
+          "name": "Get My Job Alerts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/job-alerts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "job-alerts"]
+            }
+          }
+        },
+        {
+          "name": "Update Job Alert",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Alert\",\n  \"frequency\": \"weekly\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/job-alerts/{{jobAlertId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "job-alerts", "{{jobAlertId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Job Alert",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/job-alerts/{{jobAlertId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "job-alerts", "{{jobAlertId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Saved Searches",
+      "item": [
+        {
+          "name": "Get Saved Searches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/saved-searches",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "saved-searches"]
+            }
+          }
+        },
+        {
+          "name": "Create Saved Search",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Remote backend roles\",\n  \"filters\": {\n    \"search\": \"backend\",\n    \"workplace\": \"remote\",\n    \"jobType\": \"full-time\"\n  },\n  \"alertFrequency\": \"daily\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/saved-searches",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "saved-searches"]
+            }
+          }
+        },
+        {
+          "name": "Preview Saved Search Matches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/saved-searches/{{savedSearchId}}/preview",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "saved-searches", "{{savedSearchId}}", "preview"]
+            }
+          }
+        },
+        {
+          "name": "Update Saved Search",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated saved search\",\n  \"alertFrequency\": \"weekly\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/saved-searches/{{savedSearchId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "saved-searches", "{{savedSearchId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Saved Search",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/saved-searches/{{savedSearchId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "saved-searches", "{{savedSearchId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Messages",
+      "item": [
+        {
+          "name": "Get Conversations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages"]
+            }
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"receiverId\": \"{{receiverId}}\",\n  \"jobId\": \"{{jobId}}\",\n  \"content\": \"Thanks for your application. Are you available for an interview next week?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages"]
+            }
+          }
+        },
+        {
+          "name": "Get Conversation Thread",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/{{jobId}}/{{participantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "{{jobId}}", "{{participantId}}"]
+            }
+          }
+        },
+        {
+          "name": "Mark Conversation Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/{{jobId}}/{{participantId}}/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "{{jobId}}", "{{participantId}}", "read"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

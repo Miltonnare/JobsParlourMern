@@ -15,6 +15,7 @@ const EmployerDashboard = () => {
     const [activeTab, setActiveTab] = useState('jobs'); 
     const [searchParams] = useSearchParams();
     const [payments, setPayments] = useState([]);
+    const [billingPortal, setBillingPortal] = useState(null);
     const [paymentForm, setPaymentForm] = useState({
         jobId: '',
         purpose: 'job_posting',
@@ -23,6 +24,12 @@ const EmployerDashboard = () => {
     });
     const [paymentLoading, setPaymentLoading] = useState(false);
     const [paymentMessage, setPaymentMessage] = useState('');
+    const [registrationWarning, setRegistrationWarning] = useState('');
+    const [auditLogs, setAuditLogs] = useState([]);
+    const [jobFormError, setJobFormError] = useState('');
+
+    const authBaseUrl = import.meta.env.VITE_REACT_APP_LOGIN_URL.replace('/login', '');
+    const isCompanyOwner = user?.user?.role === 'employer' && (!user?.user?.companyId || user?.user?.employerRole === 'owner');
 
     const headers = {
         Authorization: `Bearer ${user?.token}`
@@ -63,8 +70,28 @@ const EmployerDashboard = () => {
         }
     };
 
+    const fetchBillingPortal = async () => {
+        try {
+            const res = await axios.get(`${getPaymentUrl()}/portal`, { headers });
+            setBillingPortal(res.data);
+        } catch (err) {
+            console.error("Error fetching billing portal:", err.message || err);
+        }
+    };
+
+    const fetchAuditLogs = async () => {
+        if (!isCompanyOwner) return;
+        try {
+            const res = await axios.get(`${authBaseUrl}/audit-logs`, { headers });
+            setAuditLogs(Array.isArray(res.data) ? res.data : []);
+        } catch (err) {
+            console.error("Error fetching audit logs:", err.message || err);
+        }
+    };
+
     const handleCreateUpdateJobs = async (jobData) => {
         try {
+            setJobFormError('');
             if (editingJob) {
                 await axios.put(`${import.meta.env.VITE_REACT_APP_JOBS_URL}/${editingJob._id}`, jobData, { headers });
             } else {
@@ -75,6 +102,8 @@ const EmployerDashboard = () => {
             setShowJobForm(false);
         } catch (err) {
             console.error("Job create/update error:", err);
+            setJobFormError(err.response?.data?.message || 'Could not save this job.');
+            throw err;
         }
     };
 
@@ -123,6 +152,7 @@ const EmployerDashboard = () => {
             await axios.get(`${getPaymentUrl()}/verify/${reference}`, { headers });
             setPaymentMessage('Payment verified successfully.');
             fetchPayments();
+            fetchBillingPortal();
             fetchJobs();
         } catch (err) {
             setPaymentMessage(err.response?.data?.message || 'Payment verification failed.');
@@ -134,7 +164,53 @@ const EmployerDashboard = () => {
     useEffect(() => {
         fetchJobs();
         fetchPayments();
+        fetchBillingPortal();
+        fetchAuditLogs();
+
+        const storedWarning = sessionStorage.getItem('registrationWarning');
+        if (storedWarning) {
+            setRegistrationWarning(storedWarning);
+            sessionStorage.removeItem('registrationWarning');
+        }
     }, []);
+
+    const handleRetryPayment = async (paymentId) => {
+        setPaymentLoading(true);
+        setPaymentMessage('');
+        try {
+            const res = await axios.post(`${getPaymentUrl()}/${paymentId}/retry`, {}, { headers });
+            if (res.data.authorizationUrl) {
+                window.location.href = res.data.authorizationUrl;
+                return;
+            }
+            setPaymentMessage('Retry initialized.');
+            fetchPayments();
+            fetchBillingPortal();
+        } catch (err) {
+            setPaymentMessage(err.response?.data?.message || 'Could not retry this payment.');
+        } finally {
+            setPaymentLoading(false);
+        }
+    };
+
+    const downloadInvoice = async (paymentId, invoiceNumber) => {
+        try {
+            const res = await axios.get(`${getPaymentUrl()}/invoices/${paymentId}/download`, {
+                headers,
+                responseType: 'blob'
+            });
+            const blobUrl = window.URL.createObjectURL(new Blob([res.data], { type: 'text/html' }));
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `${invoiceNumber || 'invoice'}.html`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (err) {
+            setPaymentMessage(err.response?.data?.message || 'Could not download invoice.');
+        }
+    };
 
     useEffect(() => {
         const reference = searchParams.get('reference') || searchParams.get('trxref');
@@ -192,6 +268,12 @@ const EmployerDashboard = () => {
 
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {registrationWarning && (
+                    <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        {registrationWarning}
+                    </div>
+                )}
+
                 {/* Tab Navigation */}
                 <div className="flex flex-wrap gap-2 mb-8">
                   <button
@@ -212,6 +294,14 @@ const EmployerDashboard = () => {
                   >
                     Payments
                   </button>
+                  {isCompanyOwner && (
+                    <button
+                      className={`w-full sm:w-auto px-4 py-2 rounded-t-lg font-semibold focus:outline-none ${activeTab === 'audit' ? 'bg-white border-b-2 border-green-600 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+                      onClick={() => setActiveTab('audit')}
+                    >
+                      Audit Log
+                    </button>
+                  )}
                 </div>
 
                 {/* Tab Content */}
@@ -227,6 +317,7 @@ const EmployerDashboard = () => {
                             <button
                                 onClick={() => {
                                     setEditingJob(null);
+                                    setJobFormError('');
                                     setShowJobForm(true);
                                 }}
                                 className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center w-full sm:w-auto"
@@ -248,6 +339,7 @@ const EmployerDashboard = () => {
                             onClick={() => {
                               setShowJobForm(false);
                               setEditingJob(null);
+                              setJobFormError('');
                             }}
                             className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl font-bold focus:outline-none"
                           >
@@ -268,9 +360,11 @@ const EmployerDashboard = () => {
                           <JobForm
                             onSubmit={handleCreateUpdateJobs}
                             editingJob={editingJob}
+                            errorMessage={jobFormError}
                             onCancel={() => {
                               setShowJobForm(false);
                               setEditingJob(null);
+                              setJobFormError('');
                             }}
                           />
                         </div>
@@ -301,6 +395,7 @@ const EmployerDashboard = () => {
                                 <button
                                     onClick={() => {
                                         setEditingJob(null);
+                                        setJobFormError('');
                                         setShowJobForm(true);
                                     }}
                                     className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200"
@@ -326,6 +421,7 @@ const EmployerDashboard = () => {
                                             job={job}
                                             onEdit={(job) => {
                                                 setEditingJob(job);
+                                                setJobFormError('');
                                                 setShowJobForm(true);
                                             }}
                                             onDelete={handleDelete}
@@ -387,28 +483,128 @@ const EmployerDashboard = () => {
                         {paymentLoading ? 'Processing...' : 'Pay with Paystack'}
                       </button>
                     </form>
-                    <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-bold text-gray-900">Payment History</h2>
-                        <button onClick={fetchPayments} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700">Refresh</button>
+                    <div className="lg:col-span-2 space-y-6">
+                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h2 className="text-2xl font-bold text-gray-900">Current Billing</h2>
+                          <button onClick={() => { fetchPayments(); fetchBillingPortal(); }} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700">Refresh</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="rounded-lg border border-gray-200 p-4">
+                            <div className="text-sm text-gray-500">Current plan</div>
+                            <div className="font-semibold text-gray-900 mt-1">{billingPortal?.subscription?.plan?.name || 'No active plan'}</div>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 p-4">
+                            <div className="text-sm text-gray-500">Subscription status</div>
+                            <div className="font-semibold text-gray-900 mt-1 capitalize">{billingPortal?.subscription?.status || 'none'}</div>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 p-4">
+                            <div className="text-sm text-gray-500">Lifecycle</div>
+                            <div className="font-semibold text-gray-900 mt-1">{billingPortal?.lifecycle?.label || 'No billing lifecycle yet'}</div>
+                          </div>
+                        </div>
+                        {billingPortal?.subscription?.gracePeriodEndsAt && (
+                          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                            Grace period ends on {new Date(billingPortal.subscription.gracePeriodEndsAt).toLocaleDateString()}.
+                          </div>
+                        )}
                       </div>
-                      <div className="space-y-3">
-                        {payments.length === 0 ? (
-                          <p className="text-gray-500">No payments yet.</p>
-                        ) : payments.map((payment) => (
-                          <div key={payment._id} className="border border-gray-200 rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                            <div>
-                              <div className="font-semibold text-gray-900">{payment.purpose?.replace('_', ' ')}</div>
-                              <div className="text-sm text-gray-500">{payment.job?.title || 'General payment'}</div>
-                              <div className="text-xs text-gray-400">{payment.reference}</div>
+
+                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Invoices</h2>
+                        <div className="space-y-3">
+                          {(billingPortal?.invoices || []).length === 0 ? (
+                            <p className="text-gray-500">No invoices yet.</p>
+                          ) : billingPortal.invoices.map((invoice) => (
+                            <div key={invoice.paymentId} className="border border-gray-200 rounded-lg p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                              <div>
+                                <div className="font-semibold text-gray-900">{invoice.invoiceNumber}</div>
+                                <div className="text-sm text-gray-500">{invoice.plan?.name || invoice.purpose?.replace('_', ' ')}</div>
+                                <div className="text-xs text-gray-400">{new Date(invoice.createdAt).toLocaleString()}</div>
+                              </div>
+                              <div className="flex flex-col lg:items-end gap-2">
+                                <div className="font-semibold">{invoice.currency} {(invoice.amount / 100).toLocaleString()}</div>
+                                <div className={`text-sm capitalize ${invoice.status === 'success' ? 'text-green-600' : invoice.status === 'failed' ? 'text-red-600' : 'text-amber-600'}`}>{invoice.status}</div>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadInvoice(invoice.paymentId, invoice.invoiceNumber)}
+                                    className="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm"
+                                  >
+                                    Download
+                                  </button>
+                                  {['failed', 'abandoned', 'cancelled'].includes(invoice.status) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRetryPayment(invoice.paymentId)}
+                                      className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm"
+                                    >
+                                      Retry
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <div className="text-left md:text-right">
-                              <div className="font-semibold">{payment.currency} {(payment.amount / 100).toLocaleString()}</div>
-                              <div className={`text-sm capitalize ${payment.status === 'success' ? 'text-green-600' : 'text-amber-600'}`}>{payment.status}</div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h2 className="text-2xl font-bold text-gray-900">Payment History</h2>
+                          <button onClick={fetchPayments} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700">Refresh</button>
+                        </div>
+                        <div className="space-y-3">
+                          {payments.length === 0 ? (
+                            <p className="text-gray-500">No payments yet.</p>
+                          ) : payments.map((payment) => (
+                            <div key={payment._id} className="border border-gray-200 rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                              <div>
+                                <div className="font-semibold text-gray-900">{payment.purpose?.replace('_', ' ')}</div>
+                                <div className="text-sm text-gray-500">{payment.job?.title || payment.plan?.name || 'General payment'}</div>
+                                <div className="text-xs text-gray-400">{payment.reference}</div>
+                              </div>
+                              <div className="text-left md:text-right">
+                                <div className="font-semibold">{payment.currency} {(payment.amount / 100).toLocaleString()}</div>
+                                <div className={`text-sm capitalize ${payment.status === 'success' ? 'text-green-600' : payment.status === 'failed' ? 'text-red-600' : 'text-amber-600'}`}>{payment.status}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {activeTab === 'audit' && isCompanyOwner && (
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Audit Log</h2>
+                        <p className="text-sm text-gray-500 mt-1">Recent billing, hiring, export, and team actions across your company.</p>
+                      </div>
+                      <button onClick={fetchAuditLogs} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700">Refresh</button>
+                    </div>
+                    <div className="space-y-3">
+                      {auditLogs.length === 0 ? (
+                        <p className="text-gray-500">No audit entries yet.</p>
+                      ) : auditLogs.map((log) => (
+                        <div key={log._id} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                            <div>
+                              <div className="font-semibold text-gray-900">{String(log.action || '').replace(/\./g, ' ')}</div>
+                              <div className="text-sm text-gray-600">
+                                {log.actorName || 'Unknown user'}{log.actorRole ? ` (${log.actorRole})` : ''}
+                              </div>
+                              <div className="text-sm text-gray-500 mt-1">
+                                {log.metadata?.title || log.metadata?.planSlug || log.metadata?.purpose || log.entityType}
+                              </div>
+                            </div>
+                            <div className="text-sm text-gray-400">
+                              {new Date(log.createdAt).toLocaleString()}
                             </div>
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

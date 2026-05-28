@@ -1,12 +1,15 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/authContext';
+import axios from 'axios';
 
 const Navbar = () => {
   const { user, logout } = useContext(AuthContext);
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
+  const [messageUnreadCount, setMessageUnreadCount] = useState(0);
 
   const isEmployer = user?.user?.role === 'employer';
   const isJobSeeker = user?.user?.role === 'jobseeker';
@@ -16,6 +19,38 @@ const Navbar = () => {
     logout();
     navigate('/login');
   };
+
+  useEffect(() => {
+    if (!user?.token) {
+      setNotificationUnreadCount(0);
+      setMessageUnreadCount(0);
+      return undefined;
+    }
+
+    const authBaseUrl = import.meta.env.VITE_REACT_APP_LOGIN_URL.replace('/login', '');
+    const messagesBaseUrl = `${authBaseUrl}/messages`;
+    const headers = { Authorization: `Bearer ${user.token}` };
+
+    const fetchCounts = async () => {
+      try {
+        const [notificationRes, conversationsRes] = await Promise.all([
+          axios.get(`${authBaseUrl}/notifications`, { headers }),
+          axios.get(messagesBaseUrl, { headers })
+        ]);
+        setNotificationUnreadCount(Number(notificationRes.data?.unreadCount || 0));
+        const totalUnreadMessages = (Array.isArray(conversationsRes.data) ? conversationsRes.data : [])
+          .reduce((sum, conversation) => sum + Number(conversation.unreadCount || 0), 0);
+        setMessageUnreadCount(totalUnreadMessages);
+      } catch {
+        setNotificationUnreadCount(0);
+        setMessageUnreadCount(0);
+      }
+    };
+
+    fetchCounts();
+    const timer = window.setInterval(fetchCounts, 30000);
+    return () => window.clearInterval(timer);
+  }, [user]);
 
   // Handle hash navigation
   const handleHashClick = (e, hash) => {
@@ -32,9 +67,10 @@ const Navbar = () => {
     { to: '/my-applications', label: 'My Applications', show: isJobSeeker && user },
     { to: '/saved-jobs', label: 'Saved Jobs', show: isJobSeeker && user },
     { to: '/employer-dashboard', label: 'Employer Dashboard', show: isEmployer && user },
+    { to: '/messages', label: 'Messages', show: Boolean(user), badge: messageUnreadCount },
     { to: '/admin', label: 'Admin', show: isAdmin && user },
     { to: '/profile', label: 'Profile', show: Boolean(user) },
-    { to: '/notifications', label: 'Notifications', show: Boolean(user) },
+    { to: '/notifications', label: 'Notifications', show: Boolean(user), badge: notificationUnreadCount },
     { to: '/', label: 'Home', show: !user },
     { to: '/#about', label: 'About', show: location.pathname === '/', isHashLink: true, hash: 'about' },
     { to: '/#services', label: 'Services', show: location.pathname === '/', isHashLink: true, hash: 'services' },
@@ -67,7 +103,14 @@ const Navbar = () => {
                   to={link.to}
                   className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${location.pathname === link.to ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'}`}
                 >
-                  {link.label}
+                  <span className="inline-flex items-center gap-2">
+                    <span>{link.label}</span>
+                    {link.badge > 0 && (
+                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-semibold text-white">
+                        {link.badge}
+                      </span>
+                    )}
+                  </span>
                 </Link>
               )
             ))}
@@ -117,7 +160,14 @@ const Navbar = () => {
                 onClick={() => setMenuOpen(false)}
                 className={`block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 ${location.pathname === link.to ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'}`}
               >
-                {link.label}
+                <span className="inline-flex items-center gap-2">
+                  <span>{link.label}</span>
+                  {link.badge > 0 && (
+                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-semibold text-white">
+                      {link.badge}
+                    </span>
+                  )}
+                </span>
               </Link>
             )
           ))}

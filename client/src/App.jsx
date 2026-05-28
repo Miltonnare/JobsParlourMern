@@ -16,6 +16,7 @@ import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
 import AdminDashboard from './pages/AdminDashboard';
 import VerifyEmail from './pages/VerifyEmail';
+import Messages from './pages/Messages';
 
 function App(){
   const { user, logout } = useContext(AuthContext);
@@ -168,6 +169,7 @@ function App(){
           <Route path="/jobs/:id" element={<JobDetails />} />
           <Route path="/saved-jobs" element={<SavedJobsWrapper />} />
           <Route path="/profile" element={<AuthenticatedWrapper><Profile /></AuthenticatedWrapper>} />
+          <Route path="/messages" element={<AuthenticatedWrapper><Messages /></AuthenticatedWrapper>} />
           <Route path="/notifications" element={<AuthenticatedWrapper><Notifications /></AuthenticatedWrapper>} />
           <Route path="/admin" element={<AdminDashboardWrapper />} />
 

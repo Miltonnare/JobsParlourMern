@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const JobForm = ({ onSubmit, editingJob, onCancel }) => {
+const JobForm = ({ onSubmit, editingJob, onCancel, errorMessage = '' }) => {
     const [form, setForm] = useState({
         title: '',
         description: '',
@@ -158,6 +158,11 @@ const JobForm = ({ onSubmit, editingJob, onCancel }) => {
             </div>
 
             {/* Action Buttons */}
+            {errorMessage && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {errorMessage}
+                </div>
+            )}
             <div className="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
                 <button
                     type="button"

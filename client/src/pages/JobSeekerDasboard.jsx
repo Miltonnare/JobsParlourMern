@@ -6,6 +6,7 @@ const JobSeekerDashboard = () => {
   const [jobs, setJobs] = useState([]);
   const [filteredJobs, setFilteredJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [registrationWarning, setRegistrationWarning] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('all');
   const [selectedLocation, setSelectedLocation] = useState('all');
@@ -59,6 +60,12 @@ const JobSeekerDashboard = () => {
       }
     };
     fetchSavedJobs();
+
+    const storedWarning = sessionStorage.getItem('registrationWarning');
+    if (storedWarning) {
+      setRegistrationWarning(storedWarning);
+      sessionStorage.removeItem('registrationWarning');
+    }
   }, []);
 
   
@@ -106,6 +113,12 @@ const JobSeekerDashboard = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {registrationWarning && (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {registrationWarning}
+          </div>
+        )}
+
         {/* Search and Filters */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 gap-y-4">
